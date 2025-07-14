@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>G1 on Hugo Theme Stack Starter</title><link>https://tech-gt.github.io/tags/g1/</link><description>Recent content in G1 on Hugo Theme Stack Starter</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Sat, 20 May 2023 14:55:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/tags/g1/index.xml" rel="self" type="application/rss+xml"/><item><title>G1还是ZGC？高并发场景下的GC选择之道</title><link>https://tech-gt.github.io/p/g1%E8%BF%98%E6%98%AFzgc%E9%AB%98%E5%B9%B6%E5%8F%91%E5%9C%BA%E6%99%AF%E4%B8%8B%E7%9A%84gc%E9%80%89%E6%8B%A9%E4%B9%8B%E9%81%93/</link><pubDate>Sat, 20 May 2023 14:55:00 +0800</pubDate><guid>https://tech-gt.github.io/p/g1%E8%BF%98%E6%98%AFzgc%E9%AB%98%E5%B9%B6%E5%8F%91%E5%9C%BA%E6%99%AF%E4%B8%8B%E7%9A%84gc%E9%80%89%E6%8B%A9%E4%B9%8B%E9%81%93/</guid><description>&lt;h1 id="g1还是zgc高并发场景下的gc选择之道">G1还是ZGC？高并发场景下的GC选择之道
+&lt;/h1>&lt;p>对于所有Java程序员来说，GC（垃圾回收）是个既熟悉又有点“敬畏”的话题。我们享受着自动内存管理的便利，也时常要为GC引发的STW（Stop-The-World）暂停而头疼。特别是在高并发、低延迟的业务场景下，一次不合时宜的Full GC可能就是一场小小的“灾难”。&lt;/p>
+&lt;p>随着JDK的演进，垃圾回收器也在不断进化，从串行到并行，再到并发。G1的出现让“可预测的停顿”成为可能，而ZGC/Shenandoah等新一代收集器的目标则是将STW压缩到亚毫秒级别。&lt;/p>
+&lt;p>那么问题来了：在开发一个新的高并发系统时，我们应该选择成熟稳重的G1，还是拥抱更前沿的ZGC呢？&lt;/p>
+&lt;h2 id="一g1">一、G1
+&lt;/h2>&lt;p>G1 (Garbage-First) 从JDK 9开始成为默认的垃圾回收器，它的设计目标是取代CMS，在提供高吞吐量的同时，满足可预测的STW停顿时间。&lt;/p>
+&lt;h3 id="g1的核心思想">G1的核心思想
+&lt;/h3>&lt;ol>
+&lt;li>&lt;strong>化整为零&lt;/strong>：G1不再将堆划分为连续的新生代和老年代，而是划分为一个个大小相等的Region。每个Region可以扮演Eden、Survivor或Old的角色。&lt;/li>
+&lt;li>&lt;strong>暂停可预测&lt;/strong>：G1允许你设定一个期望的最大停顿时间（&lt;code>-XX:MaxGCPauseMillis&lt;/code>），它会根据这个目标，优先回收那些“垃圾最多”的Region（这也是Garbage-First名字的由来），从而尽量满足你的停顿时间要求。&lt;/li>
+&lt;li>&lt;strong>并发标记&lt;/strong>：G1的标记阶段大部分是与应用程序并发执行的，这大大减少了STW的时间。&lt;/li>
+&lt;/ol>
+&lt;h3 id="g1在什么场景下表现出色">G1在什么场景下表现出色？
+&lt;/h3>&lt;ul>
+&lt;li>&lt;strong>大堆内存&lt;/strong>：G1在超过6GB的大堆上通常比Parallel GC有更好的表现。&lt;/li>
+&lt;li>&lt;strong>兼顾吞吐与延迟&lt;/strong>：它不是最快的（吞吐量不及Parallel），也不是暂停最短的（延迟不及ZGC），但它是一个很好的平衡点。对于大多数Web应用、微服务来说，G1提供的几十到一百多毫秒的暂停时间通常是可以接受的。&lt;/li>
+&lt;/ul>
+&lt;h3 id="g1的痛点">G1的痛点
+&lt;/h3>&lt;p>尽管G1已经很优秀，但在极端场景下，它依然有力不从心的时候。比如，在并发度极高、对象分配速率极快的情况下，G1为了跟上垃圾产生的速度，可能需要更频繁地触发Mixed GC，STW的累积影响依然不可小觑。并且，它的Full GC依然是单线程的，一旦触发，暂停时间会很长。&lt;/p>
+&lt;h2 id="二新贵zgc">二、“新贵”：ZGC
+&lt;/h2>&lt;p>ZGC (Z Garbage Collector) 是JDK 11引入的、可伸缩的低延迟垃圾回收器，从JDK 15开始正式进入Production-Ready状态。它的设计目标非常明确：&lt;strong>无论堆多大，STW停顿时间都不超过10ms，甚至可以达到亚毫秒级别。&lt;/strong>&lt;/p>
+&lt;h3 id="zgc的黑科技">ZGC的“黑科技”
+&lt;/h3>&lt;ol>
+&lt;li>&lt;strong>几乎完全并发&lt;/strong>：ZGC将GC的几乎所有工作都放到了并发阶段，包括标记、转移、重定位等。它的STW只存在于少数几个关键节点（如初始标记），且时间是固定的，不会随着堆大小或对象数量的增加而增加。&lt;/li>
+&lt;li>&lt;strong>着色指针（Colored Pointers）&lt;/strong>：这是ZGC实现并发转移的核心技术。它利用指针的高位来存储对象元数据（比如是否被标记），从而在读写对象时就能知道对象的状态，实现了对应用线程无感的对象移动。&lt;/li>
+&lt;li>&lt;strong>负载敏感&lt;/strong>：ZGC能更好地处理高并发下的对象分配。&lt;/li>
+&lt;/ol>
+&lt;h3 id="zgc的代价是什么">ZGC的代价是什么？
+&lt;/h3>&lt;ul>
+&lt;li>&lt;strong>更高的CPU消耗&lt;/strong>：天下没有免费的午餐。ZGC把大量工作并发执行，意味着GC线程会和应用线程抢占CPU资源。在CPU资源紧张的服务器上，可能会对应用的吞吐量产生一定影响。&lt;/li>
+&lt;li>&lt;strong>需要更新的JDK&lt;/strong>：你需要至少JDK 11才能开始体验ZGC，而要稳定用于生产，官方推荐JDK 15+。这对于一些仍在使用JDK 8的“祖传项目”来说，是个不小的门槛。&lt;/li>
+&lt;/ul>
+&lt;h2 id="三正面对决g1-vs-zgc">三、正面对决：G1 vs. ZGC
+&lt;/h2>&lt;table>
+&lt;thead>
+&lt;tr>
+&lt;th style="text-align: left">特性&lt;/th>
+&lt;th style="text-align: left">G1&lt;/th>
+&lt;th style="text-align: left">ZGC&lt;/th>
+&lt;/tr>
+&lt;/thead>
+&lt;tbody>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>STW暂停时间&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">几十到几百毫秒，与堆大小和垃圾量相关&lt;/td>
+&lt;td style="text-align: left">亚毫秒到几毫秒，与堆大小无关&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>吞吐量&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">较高，CPU开销相对较小&lt;/td>
+&lt;td style="text-align: left">略低于G1，因并发GC消耗更多CPU&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>CPU开销&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">相对较低&lt;/td>
+&lt;td style="text-align: left">相对较高&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>堆大小&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">擅长处理GB级别的大堆&lt;/td>
+&lt;td style="text-align: left">为TB级别的超大堆设计，向下兼容&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>JDK版本&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">JDK 7+可用，JDK 9+默认&lt;/td>
+&lt;td style="text-align: left">JDK 11+实验性，JDK 15+生产可用&lt;/td>
+&lt;/tr>
+&lt;tr>
+&lt;td style="text-align: left">&lt;strong>适用场景&lt;/strong>&lt;/td>
+&lt;td style="text-align: left">大多数Web应用、微服务、需要平衡延迟和吞吐量的场景&lt;/td>
+&lt;td style="text-align: left">对延迟极度敏感的场景，如实时交易、直播、游戏等&lt;/td>
+&lt;/tr>
+&lt;/tbody>
+&lt;/table>
+&lt;h2 id="四如何做出选择">四、如何做出选择？
+&lt;/h2>&lt;p>选择G1还是ZGC，本质上是在&lt;strong>延迟&lt;/strong>、&lt;strong>吞吐量&lt;/strong>和&lt;strong>成本（CPU、升级成本）&lt;/strong> 之间做权衡。&lt;/p>
+&lt;p>&lt;strong>你应该优先考虑 G1，如果：&lt;/strong>&lt;/p>
+&lt;ol>
+&lt;li>你的应用对延迟不那么苛刻，100ms级别的GC停顿可以接受。&lt;/li>
+&lt;li>服务器CPU资源有限，你希望将更多的CPU留给应用线程以获得最大吞吐量。&lt;/li>
+&lt;li>项目基于JDK 8或较低版本的JDK 11，升级成本高。&lt;/li>
+&lt;li>你的堆内存在几十GB范围内，G1足以应对。&lt;/li>
+&lt;/ol>
+&lt;p>&lt;strong>你应该果断选择 ZGC，如果：&lt;/strong>&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>低延迟是核心诉求&lt;/strong>。任何超过10ms的停顿都可能影响用户体验或业务成败，比如在线交易系统、实时竞价广告、大型多人在线游戏等。&lt;/li>
+&lt;li>你的应用部署在&lt;strong>超大内存（上百GB甚至TB）&lt;/strong> 的服务器上。&lt;/li>
+&lt;li>&lt;strong>CPU资源充足&lt;/strong>，可以接受GC带来的一些吞吐量损耗，以换取极致的平滑体验。&lt;/li>
+&lt;li>你的技术栈是基于&lt;strong>现代JDK版本（15+）&lt;/strong> 构建的。&lt;/li>
+&lt;/ol>
+&lt;h2 id="结语">结语
+&lt;/h2>&lt;p>技术选型没有绝对的“银弹”，只有最适合的场景。G1是一个久经考验、表现均衡的“多边形战士”，而ZGC则是在低延迟领域的“特长生”。&lt;/p>
+&lt;p>在做决策前，最好的方式永远是：&lt;strong>在接近生产的环境下，用真实的业务流量对两者进行充分的压测和分析&lt;/strong>。数据会告诉你，哪个才是你真正的答案。&lt;/p></description></item></channel></rss>
