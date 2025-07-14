@@ -2,32 +2,22 @@
 title: Links
 links:
   - title: GitHub
-    description: GitHub is the world's largest software development platform.
-    website: https://github.com
+    description: tech-gt
+    website: https://github.com/tech-gt
+    image: https://avatars.githubusercontent.com/u/174289462?v=4
+
+
+  - title: GitHub
+    description: 旧账号，无法登录.
+    website: https://github.com/Tony2055866
     image: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+
+
+comments: false
 menu:
     main: 
         weight: 4
         params:
             icon: link
 
-comments: false
 ---
-
-To use this feature, add `links` section to frontmatter.
-
-This page's frontmatter:
-
-```yaml
-links:
-  - title: GitHub
-    description: GitHub is the world's largest software development platform.
-    website: https://github.com
-    image: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-  - title: TypeScript
-    description: TypeScript is a typed superset of JavaScript that compiles to plain JavaScript.
-    website: https://www.typescriptlang.org
-    image: ts-logo-128.jpg
-```
-
-`image` field accepts both local and external images.
