@@ -10,11 +10,12 @@ tags:
   - 并发编程
   - Java
 slug: aqs-demo
+description: "AQS源码可能会不太好理解，因为源码考虑了很多情况，会比较复杂一些。 今天我们就通过手写一个简化版的AQS，快速理解AQS原理"
 ---
 
-在Java并发编程中，AQS（AbstractQueuedSynchronizer）是JUC包下同步器的核心基础。无论是ReentrantLock、CountDownLatch还是Semaphore，都是基于AQS实现的。很多同学在面试时能说出AQS的概念，但真正理解其设计思想和使用方法的人并不多。
-
-今天我们就通过手写一个简化版的AQS，深入理解AQS的模版方法模式，看看它是如何优雅地解决同步问题的。
+在Java并发编程中，AQS（AbstractQueuedSynchronizer）是JUC包下同步器的核心基础。无论是ReentrantLock、CountDownLatch还是Semaphore，都是基于AQS实现的。
+直接看源码可能会不太好理解，因为源码考虑了很多情况，会比较复杂一些。
+今天我们就通过手写一个简化版的AQS，快速理解AQS原理，并可以学习AQS的模版方法模式，看看它是如何优雅地解决同步问题的。
 
 ## 一、AQS的核心思想
 
@@ -68,7 +69,7 @@ AQS已经帮我们实现了复杂的队列管理、线程阻塞/唤醒等逻辑�
 
 ## 三、手写一个简化版AQS
 
-为了更好地理解AQS的工作原理，我们来实现一个简化版的AQS：
+我们来实现一个简化版的AQS：
 
 ```java
 import java.util.concurrent.atomic.AtomicInteger;

@@ -1,11 +1,11 @@
 ---
-title: "MyBatisPlus 别只做 CRUD，自定义 SQL 注入器让开发效率翻倍"
+title: "MyBatisPlus 别只做 CRUD，试试自定义 SQL 注入器"
 date: 2022-07-15T10:23:00+08:00
 categories: ["Java", "MyBatisPlus"]
 tags: ["MyBatisPlus"]
 ---
 
-> 你还在用 MyBatisPlus 只做增删改查（CRUD）？其实它还能帮你写自定义 SQL，效率直接翻倍！
+> 你还在用 MyBatisPlus 只做增删改查（CRUD）？其实它还能帮你写自定义 SQL
 
 ## 场景：CRUD 不够用怎么办？
 
