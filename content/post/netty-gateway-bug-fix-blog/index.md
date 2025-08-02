@@ -1,5 +1,5 @@
 ---
-title: "Netty 网关问题的排查与修复实录"
+title: "Netty 网关问题的排查与修复记录"
 date: 2019-08-12T10:00:00+08:00
 categories: ["Netty", "网关"]
 tags: ["Netty", "网关"]
@@ -8,9 +8,9 @@ tags: ["Netty", "网关"]
 
 ## 前言
 
-我们从一个基于 Netty 构建的高性能 HTTP 网关项目入手，在压测期间遭遇了从 `IllegalReferenceCountException` 到各类 502 错误的“连环暴击”。通过层层递进的分析和修复，我们不仅解决了这些棘手的问题，还构建了一套健壮的、具备智能重试能力的容错机制。
+在压测期间遭遇了从 `IllegalReferenceCountException` 到各类 502 错误的。
 
-## 第一幕：幽灵般的 `IllegalReferenceCountException`
+## 一 `IllegalReferenceCountException`
 
 始于一次常规的性能压测。当并发量提升到一定阈值时，控制台开始零星地喷出 `io.netty.util.IllegalReferenceCountException: refCnt: 0` 异常。
 
