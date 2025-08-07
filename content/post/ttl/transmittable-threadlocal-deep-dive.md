@@ -12,7 +12,7 @@ description: "如何在异步执行的任务中传递ThreadLocal上下文？JDK�
 在现代Java应用开发中，线程池的使用已经成为标准实践。然而，线程池的引入却带来了一个棘手的问题：如何在异步执行的任务中传递ThreadLocal上下文？JDK原生的`InheritableThreadLocal`在线程池环境下失效，而阿里巴巴开源的`TransmittableThreadLocal`（TTL）正是为了解决这一痛点而生。
 
 
-## 1. 问题背景：ThreadLocal在线程池中的困境
+## 1. 问题背景：ThreadLocal在线程池中的问题
 
 ### 1.1 ThreadLocal的局限性
 

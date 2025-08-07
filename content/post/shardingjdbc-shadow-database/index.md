@@ -1,5 +1,5 @@
 ---
-title: "ShardingJDBC实战：通过影子库生产与测试数据隔离"
+title: "ShardingJDBC：通过影子库生产与测试数据隔离"
 description: "在生产环境中如何安全地进行测试？本文详解ShardingJDBC影子库配置与实战应用，实现生产测试数据完美隔离"
 slug: "shardingjdbc-shadow-database"
 date: 2025-01-22T14:20:00+08:00

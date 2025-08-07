@@ -1,5 +1,5 @@
 ---
-title: "RBAC-ACL经典操作权限控制：从理论到实践的完整指南"
+title: "RBAC 结合 ACL 实现灵活的权限控制系统"
 description: "深入解析RBAC和ACL两种经典权限控制模型，对比优缺点并提供实际项目中的实现方案"
 slug: "rbac-acl-permission-control"
 date: 2023-09-14T09:30:00+08:00

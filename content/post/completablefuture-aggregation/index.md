@@ -1,5 +1,5 @@
 ---
-title: "用 CompletableFuture 聚合多个后端服务响应——以直播App动态中心为例"
+title: "用 CompletableFuture 聚合多个后端服务响应"
 date: 2022-07-15T10:23:00+08:00
 categories: ["Java并发编程", "后端架构"]
 tags: ["CompletableFuture", "异步编程", "聚合服务", "性能优化"]
