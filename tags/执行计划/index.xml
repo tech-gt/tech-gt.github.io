@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>执行计划 on Glad You Came</title><link>https://tech-gt.github.io/tags/%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/</link><description>Recent content in 执行计划 on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 20 Jan 2025 11:00:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/tags/%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/index.xml" rel="self" type="application/rss+xml"/><item><title>MySQL查询优化案例：优化器为何会选错执行计划</title><link>https://tech-gt.github.io/p/mysql%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96%E6%A1%88%E4%BE%8B%E4%BC%98%E5%8C%96%E5%99%A8%E4%B8%BA%E4%BD%95%E4%BC%9A%E9%80%89%E9%94%99%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/</link><pubDate>Mon, 20 Jan 2025 11:00:00 +0800</pubDate><guid>https://tech-gt.github.io/p/mysql%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96%E6%A1%88%E4%BE%8B%E4%BC%98%E5%8C%96%E5%99%A8%E4%B8%BA%E4%BD%95%E4%BC%9A%E9%80%89%E9%94%99%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/</guid><description>&lt;h2 id="引言">引言
+&lt;/h2>&lt;p>在数据库日常维护中，我们常常会遇到一些“神奇”的慢查询：昨天还跑得飞快的SQL，今天就突然卡住了；同一个查询在主库和从库上，性能表现却有天壤之别。这些问题的根源，往往指向了MySQL的“大脑”——查询优化器（Query Optimizer）。
+核心问题在于，MySQL 的查询优化器（Query Optimizer）并非在所有情况下都能选择最高效的执行计划。当统计信息不准确、数据分布特殊或查询逻辑复杂时，优化器可能会做出错误判断，导致查询性能急剧下降。以下三个案例展示了如何诊断问题并进行针对性优化。&lt;/p>
+&lt;h3 id="案例分析">案例分析
+&lt;/h3>&lt;h4 id="案例一利用">&lt;strong>案例一：利用 &lt;code>LIMIT&lt;/code> 提前终止无效扫描&lt;/strong>
+&lt;/h4>&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>场景描述：&lt;/strong>
+开发人员需要检查 &lt;code>app&lt;/code> 表中特定 &lt;code>bid&lt;/code> 和 &lt;code>appid&lt;/code> 的记录是否存在。他们的做法是使用 &lt;code>COUNT(*)&lt;/code> 来统计记录数，然后判断结果是否大于 0。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>问题分析：&lt;/strong>
+该业务的真实意图仅仅是 &lt;strong>“判断存在性”&lt;/strong>，即 “有或无”，而并非获取精确的记录总数。当表中数据量巨大时（如此处的 60865 行），&lt;code>COUNT(*)&lt;/code> 会进行全表扫描或索引扫描以统计所有满足条件的行，造成了大量的资源浪费。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>低效的实现方式（推断）：&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-sql" data-lang="sql">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">-- 原始意图的实现方式，需要扫描所有匹配的行
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">COUNT&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">*&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">app&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">WHERE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">bid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">18171817&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">AND&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">appid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">251&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>优化方案与 SQL：&lt;/strong>
+通过添加 &lt;code>LIMIT 1&lt;/code>，告知 MySQL 在找到 &lt;strong>第一条&lt;/strong> 满足条件的记录后立即停止搜索并返回。这样可以将原本需要扫描 60865 行的操作，优化为只扫描 1 行。
+图片中展示了一个巧妙的 SQL 写法，通过子查询实现了这个逻辑：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-sql" data-lang="sql">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">-- 优化后的 SQL
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">count&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">*&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">appid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">app&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">WHERE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">bid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">18171817&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">AND&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">appid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">251&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">LIMIT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">AS&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">tb&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这条 SQL 的核心在于子查询中的 &lt;code>LIMIT 1&lt;/code>，它使得 &lt;code>app&lt;/code> 表的查询工作在找到一条记录后就结束了。外层的 &lt;code>count(*)&lt;/code> 只是对这个临时结果（0 或 1 行）进行计数，执行成本极低。&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h4 id="案例二解决两表关联顺序错误">&lt;strong>案例二：解决两表关联顺序错误&lt;/strong>
+&lt;/h4>&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>场景描述：&lt;/strong>
+一个定时任务的 SQL 查询，过去平均执行时间为分钟级，现在突然恶化到小时级。进一步发现，同一个 SQL 在主库和从库的执行性能相差 10 倍。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>问题分析：&lt;/strong>
+通过 &lt;code>EXPLAIN&lt;/code> 分析发现，性能差异的根源在于 MySQL 优化器在主库和从库上选择了不同的 &lt;strong>表关联顺序&lt;/strong>。例如，在主库上可能选择了 &lt;code>a JOIN b&lt;/code>，而在从库上选择了 &lt;code>b JOIN a&lt;/code>。这种不一致性通常是由于两个库之间的 &lt;strong>统计信息（Table Statistics）有偏差&lt;/strong> 造成的。当统计信息不能准确反映真实的数据分布时，优化器就可能被误导，选择了一个成本更高的执行计划。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>有问题的 SQL：&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-sql" data-lang="sql">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">-- 这个查询的性能在不同库上表现不一
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">indid&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">content&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">url&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="k">type&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">creatda&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">black&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">balck_ind&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">WHERE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">blackid&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">AND&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">status&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">ORDER&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">BY&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">LIMIT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">300000&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">5000&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;em>注意：这里的 &lt;code>FROM black a, balck_ind b&lt;/code> 是隐式的 &lt;code>INNER JOIN&lt;/code>，优化器有权自由决定哪张表先作为驱动表。&lt;/em>&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>优化方案与原则：&lt;/strong>
+为了避免优化器在不同环境或数据变化时“摇摆不定”，可以人工指定表的关联顺序。基本原则是：&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>小表驱动大表&lt;/strong>：用记录数较少的表（经过 &lt;code>WHERE&lt;/code> 条件过滤后）作为驱动表。&lt;/li>
+&lt;li>&lt;strong>被驱动表的关联列必须有索引&lt;/strong>：确保在大表上进行关联查找时，可以使用索引以提高效率。&lt;/li>
+&lt;/ol>
+&lt;p>可以通过 &lt;code>LEFT JOIN&lt;/code> 或者 &lt;code>STRAIGHT_JOIN&lt;/code> 来强制指定关联顺序。例如，如果 &lt;code>black&lt;/code> 是小表，&lt;code>balck_ind&lt;/code> 是大表，可以改写为：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-sql" data-lang="sql">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">-- 使用 STRAIGHT_JOIN 强制 a 作为驱动表
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">indid&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">content&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">url&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="k">type&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">creatda&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">black&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">STRAIGHT_JOIN&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">balck_ind&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ON&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">b&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">blackid&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">WHERE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">status&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">ORDER&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">BY&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">a&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">LIMIT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">300000&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="mi">5000&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;code>STRAIGHT_JOIN&lt;/code> 会强制优化器按照 SQL 中 &lt;code>FROM&lt;/code> 子句的书写顺序（从左到右）进行关联。&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;h4 id="案例三稳定复杂多表关联的执行计划">&lt;strong>案例三：稳定复杂多表关联的执行计划&lt;/strong>
+&lt;/h4>&lt;ul>
+&lt;li>
+&lt;p>&lt;strong>场景描述：&lt;/strong>
+一个涉及超过 10 张表的复杂关联查询，之前性能稳定在 1 秒左右。在新增了一张关联表后，查询性能急剧下降到数分钟。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>问题分析：&lt;/strong>
+通过 &lt;code>EXPLAIN&lt;/code> 对比优化前后的执行计划发现，问题依然出在 &lt;strong>表关联顺序&lt;/strong> 上。新表的加入，或者某张表的统计信息恰好处于一个“临界点”，导致优化器重新评估后，生成了一个完全不同的、非常低效的执行计划。这种执行计划的“抖动”是复杂 SQL 在维护过程中常见的性能陷阱。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>优化方案与 SQL：&lt;/strong>
+对于这种极其复杂的查询，让优化器次次都选对执行计划的风险很高。最稳妥的办法是 &lt;strong>人工干预&lt;/strong>，将之前性能最好的那个执行计划的关联顺序固定下来。&lt;/p>
+&lt;p>&lt;strong>解决方案：&lt;/strong> 使用 &lt;code>STRAIGHT_JOIN&lt;/code> 关键字重写整个查询，按照业务逻辑和已验证的高效顺序来排列所有的表。&lt;/p>
+&lt;figure>&lt;img src="https://tech-gt.github.io/p/mysql%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96%E6%A1%88%E4%BE%8B%E4%BC%98%E5%8C%96%E5%99%A8%E4%B8%BA%E4%BD%95%E4%BC%9A%E9%80%89%E9%94%99%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/image.png"
+alt="STRAIGHT_JOIN 示例" width="200px">
+&lt;/figure>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-sql" data-lang="sql">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">-- 概念性 SQL
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="k">SELECT&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">FROM&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table1&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c1">-- 驱动表
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="n">STRAIGHT_JOIN&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table2&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ON&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table1&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table2&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">t1_id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c1">-- 按指定顺序关联
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="n">STRAIGHT_JOIN&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table3&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ON&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table2&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table3&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="n">t2_id&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c1">-- 继续按指定顺序关联
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="p">...&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="c1">-- 以此类推，关联所有表
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="n">STRAIGHT_JOIN&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">table_new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">ON&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="k">WHERE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">...;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>通过这种方式，我们等于告诉 MySQL：“不要再自己判断了，就按照我写的这个顺序去执行”。这可以消除因统计信息变化带来的性能抖动，保证查询的稳定性。&lt;/p>
+&lt;/li>
+&lt;/ul>
+&lt;h3 id="总结">&lt;strong>总结&lt;/strong>
+&lt;/h3>&lt;p>这组案例的核心启示是：&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>SQL 优化需切合业务意图&lt;/strong>：明确查询的最终目的，避免多余的计算（如用 &lt;code>LIMIT 1&lt;/code> 代替 &lt;code>COUNT&lt;/code>）。&lt;/li>
+&lt;li>&lt;strong>执行计划是关键&lt;/strong>：使用 &lt;code>EXPLAIN&lt;/code> 是排查慢查询的必备技能，它可以揭示优化器的决策过程。&lt;/li>
+&lt;li>&lt;strong>不要盲信优化器&lt;/strong>：在复杂场景下，特别是多表关联时，优化器可能会犯错。通过 &lt;code>STRAIGHT_JOIN&lt;/code> 或调整 &lt;code>JOIN&lt;/code> 写法来人工指定执行计划，是稳定和提升性能的终极手段之一。&lt;/li>
+&lt;/ol></description></item></channel></rss>

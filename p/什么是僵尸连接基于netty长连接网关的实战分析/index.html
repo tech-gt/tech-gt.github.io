@@ -1,0 +1,414 @@
+<!doctype html><html lang=en-us dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="深入分析Netty长连接网关中的僵尸连接问题，从现象到原理，再到实际的检测和清理方案。"><title>什么是僵尸连接？基于Netty长连接网关的实战分析</title><link rel=canonical href=https://tech-gt.github.io/p/%E4%BB%80%E4%B9%88%E6%98%AF%E5%83%B5%E5%B0%B8%E8%BF%9E%E6%8E%A5%E5%9F%BA%E4%BA%8Enetty%E9%95%BF%E8%BF%9E%E6%8E%A5%E7%BD%91%E5%85%B3%E7%9A%84%E5%AE%9E%E6%88%98%E5%88%86%E6%9E%90/><link rel=stylesheet href=/scss/style.min.946cca6c6259ef94ac55abfae7c7bf3291ea3ed5eea17ef77500b257217c6710.css><meta property='og:title' content="什么是僵尸连接？基于Netty长连接网关的实战分析"><meta property='og:description' content="深入分析Netty长连接网关中的僵尸连接问题，从现象到原理，再到实际的检测和清理方案。"><meta property='og:url' content='https://tech-gt.github.io/p/%E4%BB%80%E4%B9%88%E6%98%AF%E5%83%B5%E5%B0%B8%E8%BF%9E%E6%8E%A5%E5%9F%BA%E4%BA%8Enetty%E9%95%BF%E8%BF%9E%E6%8E%A5%E7%BD%91%E5%85%B3%E7%9A%84%E5%AE%9E%E6%88%98%E5%88%86%E6%9E%90/'><meta property='og:site_name' content='Glad You Came'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:tag' content='Netty'><meta property='article:tag' content='长连接'><meta property='article:tag' content='网关'><meta property='article:tag' content='僵尸连接'><meta property='article:tag' content='TCP'><meta property='article:published_time' content='2019-08-15T14:30:00+08:00'><meta property='article:modified_time' content='2019-08-15T14:30:00+08:00'><meta name=twitter:title content="什么是僵尸连接？基于Netty长连接网关的实战分析"><meta name=twitter:description content="深入分析Netty长连接网关中的僵尸连接问题，从现象到原理，再到实际的检测和清理方案。"><link rel="shortcut icon" href=/favicon.png><script type=module>
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ 
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true
+    }
+  });
+</script></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label="Toggle Menu">
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_b574cd48e619b5ee.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>Glad You Came</a></h1><h2 class=site-description>All that counts is here and now.</h2></div></header><ol class=menu-social><li><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li><li><a href=https://twitter.com target=_blank title=Twitter rel=me><svg class="icon icon-tabler icon-tabler-brand-twitter" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M22 4.01c-1 .49-1.98.689-3 .99-1.121-1.265-2.783-1.335-4.38-.737S11.977 6.323 12 8v1c-3.245.083-6.135-1.395-8-4 0 0-4.182 7.433 4 11-1.872 1.247-3.739 2.088-6 2 3.308 1.803 6.913 2.423 10.034 1.517 3.58-1.04 6.522-3.723 7.651-7.742a13.84 13.84.0 00.497-3.753C20.18 7.773 21.692 5.25 22 4.009z"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>Home</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>Archives</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>Search</span></a></li><li><a href=/links/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>Links</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>Dark Mode</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">Table of contents</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#引言>引言</a></li><li><a href=#什么是僵尸连接>什么是僵尸连接</a></li><li><a href=#僵尸连接的危害>僵尸连接的危害</a><ol><li><a href=#1-资源浪费>1. 资源浪费</a></li><li><a href=#2-性能下降>2. 性能下降</a></li><li><a href=#3-监控误导>3. 监控误导</a></li></ol></li><li><a href=#netty中的僵尸连接检测>Netty中的僵尸连接检测</a><ol><li><a href=#1-心跳机制>1. 心跳机制</a></li><li><a href=#2-tcp-keepalive>2. TCP KeepAlive</a></li><li><a href=#3-netty的idlestatehandler>3. Netty的IdleStateHandler</a></li></ol></li><li><a href=#僵尸连接的清理策略>僵尸连接的清理策略</a><ol><li><a href=#1-定时清理任务>1. 定时清理任务</a></li><li><a href=#2-连接状态监控>2. 连接状态监控</a></li></ol></li><li><a href=#优化建议>优化建议</a><ol><li><a href=#1-合理设置超时时间>1. 合理设置超时时间</a></li><li><a href=#2-分层检测>2. 分层检测</a></li><li><a href=#3-监控告警>3. 监控告警</a></li></ol></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><header class=article-category><a href=/categories/%E7%BD%91%E7%BB%9C%E7%BC%96%E7%A8%8B/>网络编程
+</a><a href=/categories/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/>性能优化</a></header><div class=article-title-wrapper><h2 class=article-title><a href=/p/%E4%BB%80%E4%B9%88%E6%98%AF%E5%83%B5%E5%B0%B8%E8%BF%9E%E6%8E%A5%E5%9F%BA%E4%BA%8Enetty%E9%95%BF%E8%BF%9E%E6%8E%A5%E7%BD%91%E5%85%B3%E7%9A%84%E5%AE%9E%E6%88%98%E5%88%86%E6%9E%90/>什么是僵尸连接？基于Netty长连接网关的实战分析</a></h2><h3 class=article-subtitle>深入分析Netty长连接网关中的僵尸连接问题，从现象到原理，再到实际的检测和清理方案。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Aug 15, 2019</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>4 minute read</time></div></footer></div></header><section class=article-content><h2 id=引言>引言</h2><p>在维护公司的长连接网关时，我们经常会遇到一个棘手的问题：服务器显示有大量的连接，但实际上很多连接已经"死了"，客户端早就断开了，服务器却浑然不知。这些"活着却又死了"的连接，我们称之为<strong>僵尸连接</strong>（Zombie Connections）。</p><p>今天就来聊聊在基于Netty的长连接网关中，僵尸连接是怎么产生的，以及我们是如何检测和清理它们的。</p><h2 id=什么是僵尸连接>什么是僵尸连接</h2><p>僵尸连接指的是TCP连接在逻辑上已经断开，但服务器端仍然认为连接是活跃的。这种情况通常发生在：</p><ol><li><strong>客户端异常退出</strong>：客户端程序崩溃、强制关闭，没有发送FIN包</li><li><strong>网络中断</strong>：客户端网络突然断开，如拔网线、WiFi断开</li><li><strong>防火墙/NAT超时</strong>：中间网络设备清理了连接状态，但两端不知道</li><li><strong>客户端休眠</strong>：移动设备进入休眠模式，连接被系统回收</li></ol><h2 id=僵尸连接的危害>僵尸连接的危害</h2><p>在我们的网关系统中，僵尸连接会带来以下问题：</p><h3 id=1-资源浪费>1. 资源浪费</h3><p>每个连接都会占用服务器的文件描述符、内存等资源。大量僵尸连接会导致：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 查看当前连接数</span>
+</span></span><span class=line><span class=cl>netstat -an <span class=p>|</span> grep :8080 <span class=p>|</span> wc -l
+</span></span><span class=line><span class=cl><span class=c1># 输出：50000</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 但实际活跃连接可能只有几千个</span>
+</span></span></code></pre></td></tr></table></div></div><h3 id=2-性能下降>2. 性能下降</h3><ul><li>心跳检测浪费CPU和网络资源</li><li>消息推送到无效连接，增加无效网络IO</li><li>连接池满了，无法接受新的有效连接</li></ul><h3 id=3-监控误导>3. 监控误导</h3><p>运维同学看到连接数很高，以为系统负载很重，实际上大部分都是僵尸连接。</p><h2 id=netty中的僵尸连接检测>Netty中的僵尸连接检测</h2><p>在我们的网关项目中，主要通过以下几种方式来检测僵尸连接：</p><h3 id=1-心跳机制>1. 心跳机制</h3><p>最常用的方法是实现应用层心跳：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>HeartbeatHandler</span><span class=w> </span><span class=kd>extends</span><span class=w> </span><span class=n>ChannelInboundHandlerAdapter</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>HEARTBEAT_TIMEOUT</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>60</span><span class=p>;</span><span class=w> </span><span class=c1>// 60秒超时</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Override</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>channelActive</span><span class=p>(</span><span class=n>ChannelHandlerContext</span><span class=w> </span><span class=n>ctx</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 连接建立时启动心跳检测</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>startHeartbeatCheck</span><span class=p>(</span><span class=n>ctx</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ctx</span><span class=p>.</span><span class=na>fireChannelActive</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Override</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>channelRead</span><span class=p>(</span><span class=n>ChannelHandlerContext</span><span class=w> </span><span class=n>ctx</span><span class=p>,</span><span class=w> </span><span class=n>Object</span><span class=w> </span><span class=n>msg</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>msg</span><span class=w> </span><span class=k>instanceof</span><span class=w> </span><span class=n>HeartbeatMessage</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 收到心跳，更新最后活跃时间</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>updateLastActiveTime</span><span class=p>(</span><span class=n>ctx</span><span class=p>.</span><span class=na>channel</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 回复心跳响应</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>ctx</span><span class=p>.</span><span class=na>writeAndFlush</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>HeartbeatResponse</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>else</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 普通消息也算活跃</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>updateLastActiveTime</span><span class=p>(</span><span class=n>ctx</span><span class=p>.</span><span class=na>channel</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>ctx</span><span class=p>.</span><span class=na>fireChannelRead</span><span class=p>(</span><span class=n>msg</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>startHeartbeatCheck</span><span class=p>(</span><span class=n>ChannelHandlerContext</span><span class=w> </span><span class=n>ctx</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ctx</span><span class=p>.</span><span class=na>executor</span><span class=p>().</span><span class=na>scheduleAtFixedRate</span><span class=p>(()</span><span class=w> </span><span class=o>-&gt;</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>Channel</span><span class=w> </span><span class=n>channel</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ctx</span><span class=p>.</span><span class=na>channel</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>channel</span><span class=p>.</span><span class=na>isActive</span><span class=p>())</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=kt>long</span><span class=w> </span><span class=n>lastActiveTime</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>getLastActiveTime</span><span class=p>(</span><span class=n>channel</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=kt>long</span><span class=w> </span><span class=n>now</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>System</span><span class=p>.</span><span class=na>currentTimeMillis</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>now</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>lastActiveTime</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>HEARTBEAT_TIMEOUT</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>1000</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                    </span><span class=n>log</span><span class=p>.</span><span class=na>warn</span><span class=p>(</span><span class=s>&#34;检测到僵尸连接，关闭连接: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=n>channel</span><span class=p>.</span><span class=na>remoteAddress</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                    </span><span class=n>channel</span><span class=p>.</span><span class=na>close</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>},</span><span class=w> </span><span class=n>HEARTBEAT_TIMEOUT</span><span class=p>,</span><span class=w> </span><span class=n>HEARTBEAT_TIMEOUT</span><span class=p>,</span><span class=w> </span><span class=n>TimeUnit</span><span class=p>.</span><span class=na>SECONDS</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=2-tcp-keepalive>2. TCP KeepAlive</h3><p>虽然TCP自带KeepAlive机制，但默认参数太保守（2小时才开始检测）：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Configuration</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>NettyServerConfig</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=n>ServerBootstrap</span><span class=w> </span><span class=nf>createServerBootstrap</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ServerBootstrap</span><span class=w> </span><span class=n>bootstrap</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>ServerBootstrap</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>bootstrap</span><span class=p>.</span><span class=na>group</span><span class=p>(</span><span class=n>bossGroup</span><span class=p>,</span><span class=w> </span><span class=n>workerGroup</span><span class=p>)</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>channel</span><span class=p>(</span><span class=n>NioServerSocketChannel</span><span class=p>.</span><span class=na>class</span><span class=p>)</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>option</span><span class=p>(</span><span class=n>ChannelOption</span><span class=p>.</span><span class=na>SO_BACKLOG</span><span class=p>,</span><span class=w> </span><span class=n>1024</span><span class=p>)</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=c1>// 启用TCP KeepAlive</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>childOption</span><span class=p>(</span><span class=n>ChannelOption</span><span class=p>.</span><span class=na>SO_KEEPALIVE</span><span class=p>,</span><span class=w> </span><span class=kc>true</span><span class=p>)</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=c1>// 设置KeepAlive参数（需要系统支持）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>childOption</span><span class=p>(</span><span class=n>ChannelOption</span><span class=p>.</span><span class=na>TCP_NODELAY</span><span class=p>,</span><span class=w> </span><span class=kc>true</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>bootstrap</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>不过在生产环境中，我们通常还是依赖应用层心跳，因为更可控。</p><h3 id=3-netty的idlestatehandler>3. Netty的IdleStateHandler</h3><p>Netty提供了现成的空闲检测处理器：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>GatewayChannelInitializer</span><span class=w> </span><span class=kd>extends</span><span class=w> </span><span class=n>ChannelInitializer</span><span class=o>&lt;</span><span class=n>SocketChannel</span><span class=o>&gt;</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Override</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>protected</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>initChannel</span><span class=p>(</span><span class=n>SocketChannel</span><span class=w> </span><span class=n>ch</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ChannelPipeline</span><span class=w> </span><span class=n>pipeline</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ch</span><span class=p>.</span><span class=na>pipeline</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 空闲检测：30秒没有读取到数据就触发</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>pipeline</span><span class=p>.</span><span class=na>addLast</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>IdleStateHandler</span><span class=p>(</span><span class=n>30</span><span class=p>,</span><span class=w> </span><span class=n>0</span><span class=p>,</span><span class=w> </span><span class=n>0</span><span class=p>,</span><span class=w> </span><span class=n>TimeUnit</span><span class=p>.</span><span class=na>SECONDS</span><span class=p>));</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 处理空闲事件</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>pipeline</span><span class=p>.</span><span class=na>addLast</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>IdleStateEventHandler</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 其他业务处理器</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>pipeline</span><span class=p>.</span><span class=na>addLast</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>BusinessHandler</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>IdleStateEventHandler</span><span class=w> </span><span class=kd>extends</span><span class=w> </span><span class=n>ChannelInboundHandlerAdapter</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Override</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>userEventTriggered</span><span class=p>(</span><span class=n>ChannelHandlerContext</span><span class=w> </span><span class=n>ctx</span><span class=p>,</span><span class=w> </span><span class=n>Object</span><span class=w> </span><span class=n>evt</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>evt</span><span class=w> </span><span class=k>instanceof</span><span class=w> </span><span class=n>IdleStateEvent</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>IdleStateEvent</span><span class=w> </span><span class=n>event</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=n>IdleStateEvent</span><span class=p>)</span><span class=w> </span><span class=n>evt</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>event</span><span class=p>.</span><span class=na>state</span><span class=p>()</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>IdleState</span><span class=p>.</span><span class=na>READER_IDLE</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>log</span><span class=p>.</span><span class=na>info</span><span class=p>(</span><span class=s>&#34;连接空闲超时，关闭连接: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=n>ctx</span><span class=p>.</span><span class=na>channel</span><span class=p>().</span><span class=na>remoteAddress</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>ctx</span><span class=p>.</span><span class=na>close</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ctx</span><span class=p>.</span><span class=na>fireUserEventTriggered</span><span class=p>(</span><span class=n>evt</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=僵尸连接的清理策略>僵尸连接的清理策略</h2><p>在实际项目中，我们采用了多层清理策略：</p><h3 id=1-定时清理任务>1. 定时清理任务</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>ZombieConnectionCleaner</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Autowired</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=n>ConnectionManager</span><span class=w> </span><span class=n>connectionManager</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Scheduled</span><span class=p>(</span><span class=n>fixedRate</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>30000</span><span class=p>)</span><span class=w> </span><span class=c1>// 每30秒执行一次</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>cleanZombieConnections</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>List</span><span class=o>&lt;</span><span class=n>Channel</span><span class=o>&gt;</span><span class=w> </span><span class=n>allChannels</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>connectionManager</span><span class=p>.</span><span class=na>getAllChannels</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>cleanedCount</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>Channel</span><span class=w> </span><span class=n>channel</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>allChannels</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>isZombieConnection</span><span class=p>(</span><span class=n>channel</span><span class=p>))</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>log</span><span class=p>.</span><span class=na>info</span><span class=p>(</span><span class=s>&#34;清理僵尸连接: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=n>channel</span><span class=p>.</span><span class=na>remoteAddress</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>channel</span><span class=p>.</span><span class=na>close</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>cleanedCount</span><span class=o>++</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>cleanedCount</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>log</span><span class=p>.</span><span class=na>info</span><span class=p>(</span><span class=s>&#34;本次清理僵尸连接数量: {}&#34;</span><span class=p>,</span><span class=w> </span><span class=n>cleanedCount</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kt>boolean</span><span class=w> </span><span class=nf>isZombieConnection</span><span class=p>(</span><span class=n>Channel</span><span class=w> </span><span class=n>channel</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=o>!</span><span class=n>channel</span><span class=p>.</span><span class=na>isActive</span><span class=p>())</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>return</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 检查最后活跃时间</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>Long</span><span class=w> </span><span class=n>lastActiveTime</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>channel</span><span class=p>.</span><span class=na>attr</span><span class=p>(</span><span class=n>LAST_ACTIVE_TIME</span><span class=p>).</span><span class=na>get</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>lastActiveTime</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=kc>null</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>return</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=kt>long</span><span class=w> </span><span class=n>idleTime</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>System</span><span class=p>.</span><span class=na>currentTimeMillis</span><span class=p>()</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>lastActiveTime</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>idleTime</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>60000</span><span class=p>;</span><span class=w> </span><span class=c1>// 超过1分钟没有活动</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=2-连接状态监控>2. 连接状态监控</h3><p>我们还实现了一个连接状态监控，实时统计连接情况：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>ConnectionMonitor</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=n>AtomicInteger</span><span class=w> </span><span class=n>totalConnections</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>AtomicInteger</span><span class=p>(</span><span class=n>0</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=n>AtomicInteger</span><span class=w> </span><span class=n>activeConnections</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>AtomicInteger</span><span class=p>(</span><span class=n>0</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@EventListener</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>onChannelActive</span><span class=p>(</span><span class=n>ChannelActiveEvent</span><span class=w> </span><span class=n>event</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>totalConnections</span><span class=p>.</span><span class=na>incrementAndGet</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>activeConnections</span><span class=p>.</span><span class=na>incrementAndGet</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@EventListener</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>onChannelInactive</span><span class=p>(</span><span class=n>ChannelInactiveEvent</span><span class=w> </span><span class=n>event</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>totalConnections</span><span class=p>.</span><span class=na>decrementAndGet</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>activeConnections</span><span class=p>.</span><span class=na>decrementAndGet</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@EventListener</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>onHeartbeatReceived</span><span class=p>(</span><span class=n>HeartbeatEvent</span><span class=w> </span><span class=n>event</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 心跳统计</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=n>ConnectionStats</span><span class=w> </span><span class=nf>getConnectionStats</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>ConnectionStats</span><span class=p>.</span><span class=na>builder</span><span class=p>()</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>totalConnections</span><span class=p>(</span><span class=n>totalConnections</span><span class=p>.</span><span class=na>get</span><span class=p>())</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>activeConnections</span><span class=p>(</span><span class=n>activeConnections</span><span class=p>.</span><span class=na>get</span><span class=p>())</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>zombieConnections</span><span class=p>(</span><span class=n>totalConnections</span><span class=p>.</span><span class=na>get</span><span class=p>()</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>activeConnections</span><span class=p>.</span><span class=na>get</span><span class=p>())</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=p>.</span><span class=na>build</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=优化建议>优化建议</h2><p>基于我们的实践经验，有几个优化建议：</p><h3 id=1-合理设置超时时间>1. 合理设置超时时间</h3><ul><li>心跳间隔不要太短（建议30-60秒），避免浪费资源</li><li>超时时间要考虑网络延迟和客户端处理时间</li><li>移动端可以适当放宽超时时间</li></ul><h3 id=2-分层检测>2. 分层检测</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// 应用层心跳 + TCP KeepAlive + 定时清理</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>LayeredZombieDetection</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 第一层：应用心跳（30秒）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>APP_HEARTBEAT_INTERVAL</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>30</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 第二层：TCP KeepAlive（系统级别）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=kt>boolean</span><span class=w> </span><span class=n>ENABLE_TCP_KEEPALIVE</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 第三层：定时清理（60秒）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kd>final</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>CLEANUP_INTERVAL</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>60</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=3-监控告警>3. 监控告警</h3><p>设置监控指标，当僵尸连接比例过高时及时告警：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=nd>@Component</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>ZombieConnectionAlert</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=nd>@Scheduled</span><span class=p>(</span><span class=n>fixedRate</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>60000</span><span class=p>)</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>checkZombieRatio</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>ConnectionStats</span><span class=w> </span><span class=n>stats</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>connectionMonitor</span><span class=p>.</span><span class=na>getConnectionStats</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=kt>double</span><span class=w> </span><span class=n>zombieRatio</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=p>(</span><span class=kt>double</span><span class=p>)</span><span class=w> </span><span class=n>stats</span><span class=p>.</span><span class=na>getZombieConnections</span><span class=p>()</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>stats</span><span class=p>.</span><span class=na>getTotalConnections</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>zombieRatio</span><span class=w> </span><span class=o>&gt;</span><span class=w> </span><span class=n>0</span><span class=p>.</span><span class=na>3</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w> </span><span class=c1>// 僵尸连接超过30%</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>alertService</span><span class=p>.</span><span class=na>sendAlert</span><span class=p>(</span><span class=s>&#34;僵尸连接比例过高: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>String</span><span class=p>.</span><span class=na>format</span><span class=p>(</span><span class=s>&#34;%.2f%%&#34;</span><span class=p>,</span><span class=w> </span><span class=n>zombieRatio</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>100</span><span class=p>));</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=总结>总结</h2><p>僵尸连接是长连接服务中的常见问题，特别是在移动互联网环境下。</p><p>关键要点：</p><ol><li><strong>多层检测</strong>：应用心跳 + 空闲检测 + 定时清理</li><li><strong>合理参数</strong>：根据业务场景调整超时时间</li><li><strong>监控告警</strong>：及时发现和处理异常情况</li><li><strong>优雅处理</strong>：避免误杀正常连接</li></ol><p>在实际项目中，还要根据具体的业务场景和网络环境来调整策略。比如IoT设备的心跳间隔可能需要更长，而实时聊天应用可能需要更短的检测间隔。</p></section><footer class=article-footer><section class=article-tags><a href=/tags/netty/>Netty</a>
+<a href=/tags/%E9%95%BF%E8%BF%9E%E6%8E%A5/>长连接</a>
+<a href=/tags/%E7%BD%91%E5%85%B3/>网关</a>
+<a href=/tags/%E5%83%B5%E5%B0%B8%E8%BF%9E%E6%8E%A5/>僵尸连接</a>
+<a href=/tags/tcp/>TCP</a></section><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><aside class=related-content--wrapper><h2 class=section-title>Related content</h2><div class=related-content><div class="flex article-list--tile"><article><a href=/p/%E5%A6%82%E4%BD%95%E7%90%86%E8%A7%A3netty%E7%BA%BF%E7%A8%8B%E6%A8%A1%E5%9E%8B%E4%B8%80%E4%B8%AA%E9%AB%98%E6%95%88%E7%9A%84%E9%A4%90%E5%8E%85/><div class=article-details><h2 class=article-title>如何理解Netty线程模型：一个高效的餐厅</h2></div></a></article><article><a href=/p/mysql%E6%9F%A5%E8%AF%A2%E4%BC%98%E5%8C%96%E6%A1%88%E4%BE%8B%E4%BC%98%E5%8C%96%E5%99%A8%E4%B8%BA%E4%BD%95%E4%BC%9A%E9%80%89%E9%94%99%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92/><div class=article-details><h2 class=article-title>MySQL查询优化案例：优化器为何会选错执行计划</h2></div></a></article><article><a href=/p/jvm%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8%E7%9A%84%E8%BF%9B%E5%8C%96%E8%BF%98%E9%9C%80%E8%A6%81jvm%E8%B0%83%E4%BC%98%E5%90%97/><div class=article-details><h2 class=article-title>JVM垃圾回收器的进化：还需要JVM调优吗？</h2></div></a></article><article><a href=/p/%E4%BB%8E8%E7%A7%92%E5%88%B03%E7%A7%92%E4%B8%80%E6%AC%A1sql%E6%89%B9%E9%87%8F%E6%9B%B4%E6%96%B0%E7%9A%84%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/><div class=article-details><h2 class=article-title>从8秒到3秒：一次SQL批量更新的性能优化</h2></div></a></article><article><a href=/p/java%E5%BC%82%E5%B8%B8%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96%E4%BD%BF%E7%94%A8supplier%E5%92%8C%E8%A6%86%E7%9B%96fillinstacktrace%E9%99%8D%E4%BD%8Ecpu%E5%8D%A0%E7%94%A8/><div class=article-details><h2 class=article-title>Java异常性能优化：使用Supplier和覆盖fillInStackTrace降低CPU占用</h2></div></a></article></div></div></aside><div class=disqus-container><div id=disqus_thread></div><script>window.disqus_config=function(){},function(){if(["localhost","127.0.0.1"].indexOf(window.location.hostname)!=-1){document.getElementById("disqus_thread").innerHTML="Disqus comments not available by default when the website is previewed locally.";return}var t=document,e=t.createElement("script");e.async=!0,e.src="//hugo-theme-stack.disqus.com/embed.js",e.setAttribute("data-timestamp",+new Date),(t.head||t.body).appendChild(e)}()</script><noscript>Please enable JavaScript to view the <a href=https://disqus.com/?ref_noscript>comments powered by Disqus.</a></noscript><a href=https://disqus.com class=dsq-brlink>comments powered by <span class=logo-disqus>Disqus</span></a></div><style>.disqus-container{background-color:var(--card-background);border-radius:var(--card-border-radius);box-shadow:var(--shadow-l1);padding:var(--card-padding)}</style><script>window.addEventListener("onColorSchemeChange",e=>{typeof DISQUS=="object"&&DISQUS.reset({reload:!0})})</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2025 Glad You Came</section><section class=powerby>Built with <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a><br>Theme <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.30.0>Stack</a></b> designed by <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a></section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>
