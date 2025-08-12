@@ -12,7 +12,7 @@ description: "通过代码对比展示传统阻塞式RPC调用与响应式RPC调
 响应式编程是一种面向**数据流 (Data Stream)** 和**变化传播 (Propagation of Change)** 的异步编程范式。
 想象一下，你的程序不再是像传统命令式编程那样，主动去请求（pull）数据并等待结果，而是**被动地响应**一个或多个事件/数据流。当流中有新的数据、错误或者完成信号时，你的程序会被“通知”并执行相应的逻辑。
 
-它的核心思想可以类比于电子表格（例如 Excel）：
+它的核心思想可以类比于Excel的公式：
 
 * 在 Excel 中，单元格 C1 的值可以定义为 =A1+B1。  
 * 你不需要编写一个循环来不断检查 A1 或 B1 是否发生了变化。  
@@ -20,7 +20,7 @@ description: "通过代码对比展示传统阻塞式RPC调用与响应式RPC调
 
 响应式编程将各种事件（用户点击、HTTP 请求、数据库查询结果等）都看作是数据流。你可以对这些流进行组合、过滤、转换和处理，构建出复杂的异步逻辑。
 
-
+### **响应式编程的优势**
 1. **响应性 (Responsive):** 系统能够及时地对事件做出反应。  
 2. **弹性 (Resilient):** 系统在出现故障时仍能保持响应，例如通过隔离和恢复机制。  
 3. **伸缩性 (Elastic):** 系统在不同负载下都能保持响应性，可以方便地进行扩展。  
@@ -36,7 +36,7 @@ description: "通过代码对比展示传统阻塞式RPC调用与响应式RPC调
 
 #### **场景：获取订单及其用户信息**
 
-**1\. 传统的阻塞式 RPC 调用 (Traditional Blocking RPC)**
+**1 传统的阻塞式 RPC 调用**
 
 这种方式是最直观的。OrderService 发起一个网络请求到 UserService，然后**阻塞当前线程**，直到 UserService 返回结果。
 
@@ -68,7 +68,7 @@ public class OrderServiceImpl {
     private UserServiceClient userServiceClient;
 
     public OrderDetails getOrderDetails(Long orderId) {  
-        // 1. 从数据库获取订单 (可能是I/O操作)  
+        // 1. 从数据库获取订单 (一般是I/O操作)  
         Order order = orderRepository.findById(orderId).orElse(null);  
         if (order == null) {  
             return null;  
@@ -92,9 +92,8 @@ public class OrderServiceImpl {
 * **低吞吐量:** 如果有大量并发请求进入 OrderService，就需要大量的线程来处理。线程是昂贵的系统资源，无限增加线程会导致内存耗尽和频繁的上下文切换，反而降低系统整体的吞吐量。  
 * **雪崩效应:** 如果 UserService 变慢或无响应，所有调用它的 OrderService 线程都会被阻塞。最终，OrderService 的线程池会被耗尽，导致它也无法响应任何其他请求，问题会像雪崩一样蔓延到整个系统。
 
----
 
-**2 响应式 RPC 调用 (Reactive RPC)**
+**2 响应式 RPC 调用**
 
 在这种方式下，OrderService 发起请求后**不会阻塞线程**，而是提供一个“回调”或订阅一个“发布者”。当 UserService 的数据准备好后，响应式框架会使用少量的工作线程来处理这个结果。
 
@@ -131,12 +130,14 @@ public class OrderServiceImpl {
         System.out.println("线程 " + Thread.currentThread().getName() + " 开始定义响应式流...");
 
         // 1. 从数据库异步获取订单，返回 Mono<Order>  
+        //    这是一个异步的操作，不会阻塞当前线程  
+        //    当数据库返回订单数据时，会触发后续的操作  
         return orderRepository.findById(orderId)  
                 // 2. 当订单数据流到达时，使用 flatMap 切换到另一个异步调用  
                 //    flatMap 用于处理异步操作的链式调用，避免了 "回调地狱"  
                 .flatMap(order -> {  
                     // 3. 异步发起RPC调用，立即返回 Mono<User>，当前线程不会阻塞  
-                    //    网络请求会在后台由Netty等框架的少数I/O线程处理  
+                    //    网络请求会在后台由Netty框架的少数I/O线程处理  
                     System.out.println("线程 " + Thread.currentThread().getName() + " 准备调用用户服务(非阻塞)...");  
                     Mono<User> userMono = userServiceClient.getUserById(order.getUserId());
 
@@ -158,7 +159,8 @@ public class OrderServiceImpl {
    * **非阻塞:** 线程在等待网络 I/O 或数据库响应时不会被阻塞，可以立即去处理其他请求。  
    * **少量线程处理高并发:** 响应式框架（如 Spring WebFlux 底层的 Netty）使用固定数量的少量事件循环线程（Event Loop, 通常与 CPU 核心数相同）来处理成千上万的并发连接。这极大地减少了线程创建和上下文切换的开销，从而用更少的资源支持更高的并发量。  
 2. **增强的弹性和韧性 (Enhanced Resilience):**  
-   * **背压 (Backpressure):** 响应式流原生支持背压机制。如果消费者（OrderService）处理不过来，它可以向上游的生产者（UserService）发送信号，让其减慢数据发送速度，从而防止消费者因数据过载而崩溃。这是传统阻塞模式难以做到的。  
+   * **背压 (Backpressure):** 响应式流原生支持背压机制。背压的典型场景 (Flux) 例如，如果UserService 提供了如下接口：`Flux<User> getAllUsers();`
+   如果消费者（OrderService）处理不过来，它可以向上游的生产者（UserService）发送信号，让其减慢数据发送速度，从而防止消费者因数据过载而崩溃。这是传统阻塞模式难以做到的。
    * **易于实现容错:** 响应式库（如 Reactor/RxJava）提供了丰富的操作符（Operators）来处理错误，例如 onErrorReturn (出错时返回默认值), retry (自动重试), timeout (超时处理) 等。这些都可以优雅地整合到调用链中，使容错逻辑更清晰。
 
 ```Java  

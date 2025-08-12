@@ -89,7 +89,7 @@ TTL的核心思想是将上下文传递从"父子线程关系"转变为"任务�
 
 ```
 传统模式：父线程 → 子线程
-TTL模式：任务提交时的线程上下文 → 任务执行时恢复上下文
+TTL模式：任务提交时的线程上下文 → 任务执行时的线程上下文
 ```
 
 ### 2.2 核心机制：CRR模式
@@ -592,78 +592,6 @@ public class RequestCacheDemo {
                 return user;
             }).join();
         }
-    }
-}
-```
-
-## 6. 与其他框架的集成
-
-### 6.1 Spring Framework集成
-
-```java
-@Configuration
-@EnableAsync
-public class TtlSpringConfig {
-    
-    // 配置TTL装饰的异步执行器
-    @Bean
-    @Primary
-    public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(8);
-        executor.setQueueCapacity(100);
-        executor.setThreadNamePrefix("TTL-Async-");
-        executor.initialize();
-        
-        // 使用TTL装饰
-        return TtlExecutors.getTtlExecutor(executor);
-    }
-    
-    // Spring异步方法将自动支持TTL传递
-    @Service
-    public class AsyncService {
-        private static final TransmittableThreadLocal<String> context = 
-            new TransmittableThreadLocal<>();
-        
-        @Async
-        public CompletableFuture<String> processAsync() {
-            String contextValue = context.get(); // 自动获取到上下文
-            return CompletableFuture.completedFuture("处理结果: " + contextValue);
-        }
-    }
-}
-```
-
-### 6.2 SkyWalking APM集成
-
-```bash
-# 同时使用TTL Agent和SkyWalking Agent
-java -javaagent:ttl-agent-3.x.x.jar \
-     -javaagent:skywalking-agent.jar \
-     -Dskywalking.agent.service_name=my-service \
-     -Dskywalking.collector.backend_service=127.0.0.1:11800 \
-     com.example.Application
-```
-
-```java
-@RestController
-public class MonitoringIntegrationDemo {
-    private static final TransmittableThreadLocal<BusinessContext> businessContext = 
-        new TransmittableThreadLocal<>();
-    
-    @GetMapping("/api/process")
-    public String processRequest() {
-        // 设置业务上下文
-        businessContext.set(new BusinessContext("BIZ-TRACE-123", "张三"));
-        
-        return CompletableFuture.supplyAsync(() -> {
-            // ✅ TTL传递业务上下文
-            BusinessContext ctx = businessContext.get();
-            
-            // ✅ SkyWalking自动创建监控链路
-            return processBusinessLogic(ctx);
-        }).join();
     }
 }
 ```
