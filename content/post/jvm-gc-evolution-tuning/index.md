@@ -5,9 +5,10 @@ categories: ["JVM", "性能优化"]
 tags: ["JVM调优", "ZGC", "G1", "垃圾回收", "性能优化"]
 ---
 
-还记得那些年我们熬夜调优JVM参数的日子吗？`-XX:NewRatio`、`-XX:SurvivorRatio`、`-XX:MaxTenuringThreshold`...一堆参数让人头大，稍有不慎就是线上故障。
+`-XX:NewRatio`、`-XX:SurvivorRatio`、`-XX:MaxTenuringThreshold`...一堆参数让人头大。
 
-但时代变了。随着JVM垃圾回收器的不断进化，那些复杂的调优参数正在成为历史。今天我们就来聊聊：**在现代JDK版本中，我们还需要那么复杂的JVM调优吗？**
+但时代变了。随着JVM垃圾回收器的不断进化，那些复杂的调优参数正在成为历史。
+今天我们就来聊聊：**在现代JDK版本中，我们还需要那么复杂的JVM调优吗？**
 
 ## 一、传统GC的调优噩梦
 
