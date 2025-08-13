@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Netty on Glad You Came</title><link>https://tech-gt.github.io/categories/netty/</link><description>Recent content in Netty on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 12 Aug 2019 10:00:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/categories/netty/index.xml" rel="self" type="application/rss+xml"/><item><title>Netty 网关问题的排查与修复记录</title><link>https://tech-gt.github.io/p/netty-%E7%BD%91%E5%85%B3%E9%97%AE%E9%A2%98%E7%9A%84%E6%8E%92%E6%9F%A5%E4%B8%8E%E4%BF%AE%E5%A4%8D%E8%AE%B0%E5%BD%95/</link><pubDate>Mon, 12 Aug 2019 10:00:00 +0800</pubDate><guid>https://tech-gt.github.io/p/netty-%E7%BD%91%E5%85%B3%E9%97%AE%E9%A2%98%E7%9A%84%E6%8E%92%E6%9F%A5%E4%B8%8E%E4%BF%AE%E5%A4%8D%E8%AE%B0%E5%BD%95/</guid><description>&lt;h2 id="前言">前言
+&lt;/h2>&lt;p>在压测期间遭遇了从 &lt;code>IllegalReferenceCountException&lt;/code> 到各类 502 错误的。&lt;/p>
+&lt;h2 id="一-illegalreferencecountexception">一 &lt;code>IllegalReferenceCountException&lt;/code>
+&lt;/h2>&lt;p>始于一次常规的性能压测。当并发量提升到一定阈值时，控制台开始零星地喷出 &lt;code>io.netty.util.IllegalReferenceCountException: refCnt: 0&lt;/code> 异常。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-fallback" data-lang="fallback">&lt;span class="line">&lt;span class="cl">io.netty.util.IllegalReferenceCountException: refCnt: 0
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> at io.netty.buffer.AbstractByteBuf.ensureAccessible(AbstractByteBuf.java:1454)
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> at io.netty.buffer.AbstractByteBuf.copy(AbstractByteBuf.java:1194)
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> at com.gateway.service.AsyncHttpForwardService.createBackendRequest(AsyncHttpForwardService.java:224)
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> at com.gateway.service.AsyncHttpForwardService$2.operationComplete(AsyncHttpForwardService.java:168)
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> ...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这个异常指向 &lt;code>originalRequest.content().copy()&lt;/code>，明示我们试图操作一个已经被释放的 &lt;code>ByteBuf&lt;/code>。&lt;/p>
+&lt;h3 id="问题分析竞态条件">问题分析：竞态条件
+&lt;/h3>&lt;p>Netty 的 &lt;code>ByteBuf&lt;/code> 使用引用计数来管理内存。当我们尝试 &lt;code>retain()&lt;/code> 一个已经被 &lt;code>release()&lt;/code> 的 &lt;code>ByteBuf&lt;/code> 时，就会触发此异常。&lt;/p>
+&lt;p>经过对代码逻辑的仔细梳理，我们定位到了一个典型的&lt;strong>异步竞态条件 (Race Condition)&lt;/strong>：&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>获取连接&lt;/strong>: 从连接池获取一个到后端服务的 &lt;code>Channel&lt;/code>。&lt;/li>
+&lt;li>&lt;strong>添加处理器&lt;/strong>: &lt;strong>立即&lt;/strong>将 &lt;code>BackendResponseHandler&lt;/code> 添加到该 &lt;code>Channel&lt;/code> 的 &lt;code>pipeline&lt;/code> 中。&lt;/li>
+&lt;li>&lt;strong>发送请求&lt;/strong>: 异步调用 &lt;code>channel.writeAndFlush(request)&lt;/code>。&lt;/li>
+&lt;/ol>
+&lt;p>问题就出在第 2 步和第 3 步之间：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>失败路径&lt;/strong>: 如果 &lt;code>writeAndFlush&lt;/code> 操作&lt;strong>因为网络原因瞬间失败&lt;/strong>（例如，连接刚建立就被对端重置），它的 &lt;code>FutureListener&lt;/code> 会被触发。&lt;/li>
+&lt;li>&lt;strong>连锁反应&lt;/strong>: 失败的 &lt;code>Listener&lt;/code> 会调用 &lt;code>channel.close()&lt;/code>，这会触发 &lt;code>pipeline&lt;/code> 上的 &lt;code>channelInactive&lt;/code> 事件。&lt;/li>
+&lt;li>&lt;strong>提前释放&lt;/strong>: &lt;code>BackendResponseHandler&lt;/code> 捕获到 &lt;code>channelInactive&lt;/code> 事件后，认为请求已经结束，便调用 &lt;code>originalRequest.release()&lt;/code>，将请求的引用计数减为 0。&lt;/li>
+&lt;li>&lt;strong>致命一击&lt;/strong>: 与此同时，&lt;code>writeAndFlush&lt;/code> 失败的 &lt;code>Listener&lt;/code> 在关闭连接后，还会继续执行&lt;strong>重试逻辑&lt;/strong>，当它再次尝试使用那个已被释放的 &lt;code>request&lt;/code> 对象去 &lt;code>copy()&lt;/code> 内容时，异常爆发。&lt;/li>
+&lt;/ul>
+&lt;h3 id="解决方案">解决方案
+&lt;/h3>&lt;p>我们必须保证只有在请求成功发送后，才将响应处理器加入 &lt;code>pipeline&lt;/code>。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// ...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">backendChannel&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">writeAndFlush&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">backendRequest&lt;/span>&lt;span class="p">).&lt;/span>&lt;span class="na">addListener&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">writeFuture&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">-&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">writeFuture&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">isSuccess&lt;/span>&lt;span class="p">())&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 请求发送成功后，再添加响应处理器&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">backendChannel&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">pipeline&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="na">addLast&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;responseHandler&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">BackendResponseHandler&lt;/span>&lt;span class="p">(...));&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">else&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 发送失败，销毁连接并重试&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// ...&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">});&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>如果发送失败，&lt;code>BackendResponseHandler&lt;/code> 根本没有机会被添加，自然也不会有提前释放资源的问题。&lt;/p>
+&lt;h2 id="502问题">502问题
+&lt;/h2>&lt;p>解决了引用计数问题后，压测过程平稳了许多。但新的问题随之而来，日志中开始出现 502 错误：&lt;code>{&amp;quot;error&amp;quot;: &amp;quot;Bad Gateway&amp;quot;, &amp;quot;message&amp;quot;: &amp;quot;Backend connection closed unexpectedly&amp;quot;, ...}&lt;/code>。&lt;/p>
+&lt;h3 id="问题分析连接池的陷阱">问题分析：连接池的陷阱
+&lt;/h3>&lt;p>这个问题指向了一个在长连接（Keep-Alive）和连接池模式下非常经典的陷阱——&lt;strong>陈旧连接（Stale Connection）&lt;/strong>。&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Keep-Alive 机制&lt;/strong>: 为了性能，网关与后端服务之间会复用 TCP 连接。&lt;/li>
+&lt;li>&lt;strong>服务器超时&lt;/strong>: 后端服务（如 Tomcat）有自己的 Keep-Alive 超时设置。如果一个连接在网关的连接池里闲置过久，后端会单方面关闭它。&lt;/li>
+&lt;li>&lt;strong>“假活”状态&lt;/strong>: 在网关侧，这个已被后端关闭的连接在被取用之前，可能仍然被认为是 &lt;code>active&lt;/code> 的。&lt;/li>
+&lt;li>&lt;strong>失败的请求&lt;/strong>: 当网关用这个“已死”的连接发送数据时，会立即触发 &lt;code>channelInactive&lt;/code> 事件，而我们当时的处理器逻辑只是简单地向客户端返回 502，并未尝试挽救。&lt;/li>
+&lt;/ul>
+&lt;h3 id="解决方案为意外断开赋予重试能力">解决方案：为“意外断开”赋予重试能力
+&lt;/h3>&lt;p>问题的核心在于，&lt;code>channelInactive&lt;/code> 应当被视为一种&lt;strong>可重试的瞬态网络错误&lt;/strong>。&lt;/p>
+&lt;p>为了实现这一点，我们进行了一次重构：&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>提取统一的重试方法&lt;/strong>: 我们创建了一个 &lt;code>handleConnectionFailure(...)&lt;/code> 方法，它封装了所有重试逻辑（检查次数、延迟执行等）。&lt;/li>
+&lt;li>&lt;strong>让 Handler 变得更“聪明”&lt;/strong>: &lt;code>BackendResponseHandler&lt;/code> 不再是一个简单的响应转换器。我们让它持有重试所需的上下文信息，如 &lt;code>BackendService&lt;/code> 和剩余重试次数 &lt;code>retriesLeft&lt;/code>。&lt;/li>
+&lt;li>&lt;strong>改造 &lt;code>channelInactive&lt;/code>&lt;/strong>: 修改 &lt;code>channelInactive&lt;/code> 的实现，让它在捕获到连接意外关闭时，调用 &lt;code>handleConnectionFailure&lt;/code> 来触发重试，而不是直接报错。&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// 在 BackendResponseHandler 中&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="nd">@Override&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">void&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">channelInactive&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">ChannelHandlerContext&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ctx&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">throws&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Exception&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="o">!&lt;/span>&lt;span class="n">processed&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">processed&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 后端连接意外关闭，这是一个典型的可重试场景 (stale connection)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">gatewayCtx&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">channel&lt;/span>&lt;span class="p">().&lt;/span>&lt;span class="na">isActive&lt;/span>&lt;span class="p">())&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 调用统一的失败处理/重试逻辑&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">handleConnectionFailure&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">gatewayCtx&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">originalRequest&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">service&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">retriesLeft&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s">&amp;#34;Backend connection closed unexpectedly, retrying...&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">else&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">originalRequest&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">release&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>##超时与重置&lt;/p>
+&lt;p>网关的健壮性已大大提升，但压测日志中仍有概率出现：&lt;code>ReadTimeoutException&lt;/code> 和 &lt;code>IOException: Connection reset by peer&lt;/code>。&lt;/p>
+&lt;ul>
+&lt;li>&lt;code>ReadTimeoutException&lt;/code>: 网关在指定时间内未收到后端响应。&lt;/li>
+&lt;li>&lt;code>IOException&lt;/code>: 后端服务可能崩溃或重启，强行中止了连接。&lt;/li>
+&lt;/ul>
+&lt;p>这两种同样是典型的瞬态网络错误。我们现有的 &lt;code>exceptionCaught&lt;/code> 处理器只会记录日志并返回 502，它需要变得更智能。&lt;/p>
+&lt;h3 id="解决方案精准识别分类处理">解决方案：精准识别，分类处理
+&lt;/h3>&lt;p>我们不能对所有异常都进行重试（例如 &lt;code>NullPointerException&lt;/code>），这可能会掩盖真正的程序 Bug。因此，我们需要对异常进行&lt;strong>分类处理&lt;/strong>。&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>创建 &lt;code>isRetryableException&lt;/code> 方法&lt;/strong>: 新增一个辅助方法，专门用于判断一个 &lt;code>Throwable&lt;/code> 是否属于可重试的网络异常。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="kd">private&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">boolean&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">isRetryableException&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">Throwable&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 读超时，意味着后端可能繁忙，重试可能成功&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">instanceof&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">io&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">netty&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">handler&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">timeout&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">ReadTimeoutException&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 连接被重置等IO异常，是典型的网络问题&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">instanceof&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">java&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">io&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">IOException&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">false&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>升级 &lt;code>exceptionCaught&lt;/code> 方法&lt;/strong>:&lt;/p>
+&lt;ul>
+&lt;li>首先，任何导致 &lt;code>exceptionCaught&lt;/code> 的 &lt;code>Channel&lt;/code> 都被认为是有问题的，必须&lt;strong>强制关闭&lt;/strong>，绝不放回连接池。&lt;/li>
+&lt;li>然后，调用 &lt;code>isRetryableException&lt;/code> 判断异常类型。&lt;/li>
+&lt;li>如果是可重试的，就调用 &lt;code>handleConnectionFailure&lt;/code>。&lt;/li>
+&lt;li>如果不是，则快速失败，记录严重错误并返回 502。&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="nd">@Override&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">void&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">exceptionCaught&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">ChannelHandlerContext&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ctx&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Throwable&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">throws&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Exception&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 抛出异常的 Channel 必须关闭&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">cleanupAndRelease&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">ctx&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">processed&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">processed&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kc">true&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 如果是可重试的瞬态网络错误，则尝试重试&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">if&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">isRetryableException&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">))&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">handleConnectionFailure&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">gatewayCtx&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">originalRequest&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">service&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">retriesLeft&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s">&amp;#34;Backend connection error, retrying...&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">else&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 对于其他未知错误，快速失败&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">logger&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;Non-retryable backend error: &amp;#34;&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">sendErrorResponse&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">gatewayCtx&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">HttpResponseStatus&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">BAD_GATEWAY&lt;/span>&lt;span class="p">,&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="s">&amp;#34;Backend processing error: &amp;#34;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">+&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">cause&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">getMessage&lt;/span>&lt;span class="p">());&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">originalRequest&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">release&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="总结与心得">总结与心得
+&lt;/h2>&lt;ol>
+&lt;li>&lt;strong>异步编程，时序为王&lt;/strong>: 在 Netty 的异步世界里，操作的执行顺序至关重要。错误的顺序是许多并发 Bug 的根源。&lt;/li>
+&lt;li>&lt;strong>重试是服务可靠性的基石&lt;/strong>: 构建任何网络服务，都必须有一套完善的重试机制。关键在于识别哪些错误是“值得”重试的。&lt;/li>
+&lt;li>&lt;strong>连接池不是银弹&lt;/strong>: 连接池带来了性能，也带来了“陈旧连接”等管理复杂性。必须主动处理这些问题，而不是期望它能“自动工作”。&lt;/li>
+&lt;li>&lt;strong>异常处理必须精细化&lt;/strong>: 不要用一个 &lt;code>catch(Exception e)&lt;/code> 来处理所有问题。对异常进行分类，区分瞬态网络错误和永久性应用错误，是构建健壮系统的关键。&lt;/li>
+&lt;/ol></description></item></channel></rss>

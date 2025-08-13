@@ -1,0 +1,401 @@
+<!doctype html><html lang=en-us dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="深入浅出讲解JVM如何从Class文件到运行时数据区执行Java代码，结合实际开发经验分析各个环节。"><title>你的Java代码是如何被执行的？</title><link rel=canonical href=https://tech-gt.github.io/p/%E4%BD%A0%E7%9A%84java%E4%BB%A3%E7%A0%81%E6%98%AF%E5%A6%82%E4%BD%95%E8%A2%AB%E6%89%A7%E8%A1%8C%E7%9A%84/><link rel=stylesheet href=/scss/style.min.946cca6c6259ef94ac55abfae7c7bf3291ea3ed5eea17ef77500b257217c6710.css><meta property='og:title' content="你的Java代码是如何被执行的？"><meta property='og:description' content="深入浅出讲解JVM如何从Class文件到运行时数据区执行Java代码，结合实际开发经验分析各个环节。"><meta property='og:url' content='https://tech-gt.github.io/p/%E4%BD%A0%E7%9A%84java%E4%BB%A3%E7%A0%81%E6%98%AF%E5%A6%82%E4%BD%95%E8%A2%AB%E6%89%A7%E8%A1%8C%E7%9A%84/'><meta property='og:site_name' content='Glad You Came'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:tag' content='JVM'><meta property='article:tag' content='Class文件'><meta property='article:tag' content='类加载'><meta property='article:published_time' content='2022-07-15T10:23:00+08:00'><meta property='article:modified_time' content='2022-07-15T10:23:00+08:00'><meta name=twitter:title content="你的Java代码是如何被执行的？"><meta name=twitter:description content="深入浅出讲解JVM如何从Class文件到运行时数据区执行Java代码，结合实际开发经验分析各个环节。"><link rel="shortcut icon" href=/favicon.png><script type=module>
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ 
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true
+    }
+  });
+</script></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label="Toggle Menu">
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_b574cd48e619b5ee.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>Glad You Came</a></h1><h2 class=site-description>All that counts is here and now.</h2></div></header><ol class=menu-social><li><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li><li><a href=https://twitter.com target=_blank title=Twitter rel=me><svg class="icon icon-tabler icon-tabler-brand-twitter" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M22 4.01c-1 .49-1.98.689-3 .99-1.121-1.265-2.783-1.335-4.38-.737S11.977 6.323 12 8v1c-3.245.083-6.135-1.395-8-4 0 0-4.182 7.433 4 11-1.872 1.247-3.739 2.088-6 2 3.308 1.803 6.913 2.423 10.034 1.517 3.58-1.04 6.522-3.723 7.651-7.742a13.84 13.84.0 00.497-3.753C20.18 7.773 21.692 5.25 22 4.009z"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>Home</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>Archives</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>Search</span></a></li><li><a href=/links/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>Links</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>Dark Mode</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">Table of contents</h2><div class=widget--toc><nav id=TableOfContents><ol><li><a href=#一class文件是什么>一、Class文件是什么？</a><ol><li><a href=#class文件结构简述>Class文件结构简述</a></li></ol></li><li><a href=#二类加载机制class文件如何被jvm识别>二、类加载机制：Class文件如何被JVM识别？</a><ol><li><a href=#类加载器的双亲委派模型>类加载器的双亲委派模型</a></li></ol></li><li><a href=#三运行时数据区jvm的内存分区>三、运行时数据区：JVM的“内存分区”</a><ol><li><a href=#1-方法区method-area>1. 方法区（Method Area）</a></li><li><a href=#2-堆heap>2. 堆（Heap）</a></li><li><a href=#3-虚拟机栈jvm-stack>3. 虚拟机栈（JVM Stack）</a></li><li><a href=#4-本地方法栈native-method-stack>4. 本地方法栈（Native Method Stack）</a></li><li><a href=#5-程序计数器program-counter-register>5. 程序计数器（Program Counter Register）</a></li></ol></li><li><a href=#四代码示例一个简单的java类是如何被执行的>四、代码示例：一个简单的Java类是如何被执行的</a></li><li><a href=#五jvm执行java代码的流程>五、JVM执行Java代码的流程</a><ol><li><a href=#6-字节码指令执行jvm的汇编语言>6. 字节码指令执行：JVM的"汇编语言"</a></li><li><a href=#7-jit即时编译器让java跑得更快>7. JIT即时编译器：让Java跑得更快</a></li><li><a href=#8-垃圾回收gc自动内存管理>8. 垃圾回收（GC）：自动内存管理</a><ol><li><a href=#堆内存分代模型>堆内存分代模型</a></li><li><a href=#gc触发时机与过程>GC触发时机与过程</a></li></ol></li><li><a href=#9-内存模型与线程安全>9. 内存模型与线程安全</a></li></ol></li><li><a href=#六性能调优与监控>六、性能调优与监控</a><ol><li><a href=#jvm调优参数>JVM调优参数</a></li><li><a href=#性能监控工具>性能监控工具</a></li></ol></li><li><a href=#七开发中的常见问题与解决方案>七、开发中的常见问题与解决方案</a><ol><li><a href=#1-类加载问题>1. 类加载问题</a></li><li><a href=#2-内存泄漏排查>2. 内存泄漏排查</a></li><li><a href=#3-线程安全与性能平衡>3. 线程安全与性能平衡</a></li></ol></li><li><a href=#八实战分析一个真实的性能问题>八、实战：分析一个真实的性能问题</a></li><li><a href=#总结>总结</a></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><header class=article-category><a href=/categories/java%E5%9F%BA%E7%A1%80/>Java基础
+</a><a href=/categories/jvm/>JVM</a></header><div class=article-title-wrapper><h2 class=article-title><a href=/p/%E4%BD%A0%E7%9A%84java%E4%BB%A3%E7%A0%81%E6%98%AF%E5%A6%82%E4%BD%95%E8%A2%AB%E6%89%A7%E8%A1%8C%E7%9A%84/>你的Java代码是如何被执行的？</a></h2><h3 class=article-subtitle>深入浅出讲解JVM如何从Class文件到运行时数据区执行Java代码，结合实际开发经验分析各个环节。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Jul 15, 2022</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>5 minute read</time></div></footer></div></header><section class=article-content><h1 id=你的java代码是如何被执行的>你的Java代码是如何被执行的？</h1><p>在日常开发中，我们经常会遇到各种JVM相关的问题，比如内存溢出、类加载异常、性能瓶颈等。很多同学可能对JVM的印象还停留在“Java虚拟机能让Java代码跨平台运行”，但实际上，JVM的内部机制远比我们想象的要复杂和有趣。今天就带大家从一个Class文件的视角，聊聊JVM是如何一步步把你的Java代码变成可以运行的程序的。</p><h2 id=一class文件是什么>一、Class文件是什么？</h2><p>我们写的Java代码，最终会被编译成以<code>.class</code>结尾的字节码文件。Class文件其实就是一堆二进制数据，里面包含了类的结构、方法、字段、常量池等信息。它是JVM能够识别和执行的“说明书”。</p><h3 id=class文件结构简述>Class文件结构简述</h3><ul><li><strong>魔数与版本号</strong>：每个Class文件开头都有魔数<code>0xCAFEBABE</code>，用来标识这是个Class文件，后面跟着版本号。</li><li><strong>常量池</strong>：存储类中的各种常量，比如字符串、类名、方法名等。</li><li><strong>访问标志</strong>：描述类的访问权限（public、final等）。</li><li><strong>类信息</strong>：包括当前类、父类、实现的接口等。</li><li><strong>字段表、方法表</strong>：类的属性和方法定义。</li><li><strong>属性表</strong>：比如源码文件名、行号表等调试信息。</li></ul><h2 id=二类加载机制class文件如何被jvm识别>二、类加载机制：Class文件如何被JVM识别？</h2><p>JVM并不是一次性把所有Class文件都加载进来，而是“用到才加载”，这就是<strong>类加载机制</strong>。整个过程分为：</p><ol><li><strong>加载（Loading）</strong>：JVM通过类加载器（ClassLoader）读取Class文件，生成对应的Class对象。</li><li><strong>链接（Linking）</strong>：包括验证（校验Class文件格式和安全性）、准备（为静态变量分配内存）、解析（将符号引用转为直接引用）。</li><li><strong>初始化（Initialization）</strong>：执行类的静态代码块和静态变量初始化。</li></ol><h3 id=类加载器的双亲委派模型>类加载器的双亲委派模型</h3><p>JVM内置了三种主要的类加载器：</p><ul><li><strong>启动类加载器（Bootstrap ClassLoader）</strong>：加载JDK核心类库（rt.jar等）。</li><li><strong>扩展类加载器（Extension ClassLoader）</strong>：加载JDK扩展库（ext目录）。</li><li><strong>应用类加载器（App ClassLoader）</strong>：加载我们自己写的代码（classpath下的类）。</li></ul><p>加载请求会先交给父加载器，只有父加载器找不到才会自己加载，这样可以保证Java核心类的安全性。</p><h2 id=三运行时数据区jvm的内存分区>三、运行时数据区：JVM的“内存分区”</h2><p>Class文件加载进来后，JVM会把它们的信息放到不同的内存区域，这些区域统称为<strong>运行时数据区</strong>。每个区域都有自己的职责：</p><h3 id=1-方法区method-area>1. 方法区（Method Area）</h3><ul><li>存放已加载的类信息、常量、静态变量、JIT编译后的代码等。</li><li>也叫“永久代”（PermGen，JDK8之前）或“元空间”（Metaspace，JDK8之后）。</li></ul><h3 id=2-堆heap>2. 堆（Heap）</h3><ul><li>存放所有对象实例和数组，是垃圾回收的主要区域。</li><li>也是Java内存溢出（OutOfMemoryError）最常见的地方。</li></ul><h3 id=3-虚拟机栈jvm-stack>3. 虚拟机栈（JVM Stack）</h3><ul><li>每个线程独有，存放方法调用时的局部变量、操作数栈、方法出口等。</li><li>栈溢出（StackOverflowError）就发生在这里。</li></ul><h3 id=4-本地方法栈native-method-stack>4. 本地方法栈（Native Method Stack）</h3><ul><li>为JVM调用本地（C/C++）方法服务。</li></ul><h3 id=5-程序计数器program-counter-register>5. 程序计数器（Program Counter Register）</h3><ul><li>记录当前线程正在执行的字节码行号指示器。</li><li>多线程切换时，靠它来恢复执行位置。</li></ul><h2 id=四代码示例一个简单的java类是如何被执行的>四、代码示例：一个简单的Java类是如何被执行的</h2><p>为了更直观地理解上述过程，我们来看一个简单的例子：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java:Simple.java data-lang=java:Simple.java><span class=line><span class=cl><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>Simple</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>s</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>1</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>m</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>2</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=nf>add</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>a</span><span class=p>,</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>b</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>a</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>b</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>m</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>main</span><span class=p>(</span><span class=n>String</span><span class=o>[]</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>Simple</span><span class=w> </span><span class=n>simple</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>Simple</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=kt>int</span><span class=w> </span><span class=n>result</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>simple</span><span class=p>.</span><span class=na>add</span><span class=p>(</span><span class=n>3</span><span class=p>,</span><span class=w> </span><span class=n>4</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=n>result</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>JVM执行<code>Simple.main</code>方法的流程如下：</p><div class=mermaid>sequenceDiagram
+participant User as 用户
+participant JVM as JVM
+participant ClassLoader as 类加载器
+participant MethodArea as 方法区
+participant Heap as 堆
+participant Stack as 虚拟机栈
+User->>JVM: 执行 java Simple
+JVM->>ClassLoader: 加载 Simple.class
+ClassLoader-->>JVM: 返回 Class<simple> 对象
+JVM->>MethodArea: 存储类信息、静态变量s
+JVM->>Stack: 为main方法创建栈帧
+Stack->>Heap: new Simple() 创建对象实例
+Heap-->>Stack: 返回对象引用
+Stack->>Stack: 执行 simple.add(3, 4)
+Stack->>Stack: 为add方法创建新栈帧
+Note right of Stack: add方法栈帧包含局部变量a,b和this引用
+Stack-->>Stack: add方法返回结果
+Stack->>Stack: main方法接收结果
+Stack->>JVM: System.out.println() 输出结果</div><h2 id=五jvm执行java代码的流程>五、JVM执行Java代码的流程</h2><ol><li><strong>编译</strong>：Java源码（.java） → 编译器 → 字节码（.class）</li><li><strong>加载</strong>：类加载器读取Class文件，加载到方法区</li><li><strong>实例化</strong>：在堆中创建对象实例</li><li><strong>执行</strong>：JVM解释执行字节码，或通过JIT即时编译成本地机器码</li><li><strong>方法调用与栈帧</strong>：每次方法调用都会在虚拟机栈中创建一个栈帧，方法执行完毕后栈帧出栈</li></ol><h3 id=6-字节码指令执行jvm的汇编语言>6. 字节码指令执行：JVM的"汇编语言"</h3><p>让我们深入看看JVM是如何执行字节码指令的。以上面的<code>add</code>方法为例，编译后的字节码大致如下：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span><span class=lnt>9
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-gdscript3 data-lang=gdscript3><span class=line><span class=cl><span class=n>public</span> <span class=ne>int</span> <span class=n>add</span><span class=p>(</span><span class=ne>int</span><span class=p>,</span> <span class=ne>int</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=n>Code</span><span class=p>:</span>
+</span></span><span class=line><span class=cl>     <span class=mi>0</span><span class=p>:</span> <span class=n>iload_1</span>      <span class=o>//</span> <span class=err>将第一个参数</span><span class=n>a压入操作数栈</span>
+</span></span><span class=line><span class=cl>     <span class=mi>1</span><span class=p>:</span> <span class=n>iload_2</span>      <span class=o>//</span> <span class=err>将第二个参数</span><span class=n>b压入操作数栈</span>
+</span></span><span class=line><span class=cl>     <span class=mi>2</span><span class=p>:</span> <span class=n>iadd</span>         <span class=o>//</span> <span class=err>弹出栈顶两个</span><span class=n>int值</span><span class=err>，相加后压入栈</span>
+</span></span><span class=line><span class=cl>     <span class=mi>3</span><span class=p>:</span> <span class=n>aload_0</span>      <span class=o>//</span> <span class=err>将</span><span class=n>this引用压入栈</span>
+</span></span><span class=line><span class=cl>     <span class=mi>4</span><span class=p>:</span> <span class=n>getfield</span> <span class=c1>#2  // 获取实例字段m的值</span>
+</span></span><span class=line><span class=cl>     <span class=mi>7</span><span class=p>:</span> <span class=n>iadd</span>         <span class=o>//</span> <span class=err>再次相加</span>
+</span></span><span class=line><span class=cl>     <span class=mi>8</span><span class=p>:</span> <span class=n>ireturn</span>      <span class=o>//</span> <span class=err>返回栈顶</span><span class=n>int值</span>
+</span></span></code></pre></td></tr></table></div></div><p>每条字节码指令都对应JVM内部的一个操作，JVM通过<strong>操作数栈</strong>和<strong>局部变量表</strong>来完成计算：</p><ul><li><strong>局部变量表</strong>：存储方法参数和局部变量</li><li><strong>操作数栈</strong>：用于计算的临时存储区域</li></ul><h3 id=7-jit即时编译器让java跑得更快>7. JIT即时编译器：让Java跑得更快</h3><p>JVM不仅仅是解释执行字节码，为了提升性能，它还引入了<strong>JIT（Just-In-Time）即时编译器</strong>。当某个方法被频繁调用（成为"热点代码"）时，JIT会将其编译成本地机器码并缓存起来，后续调用就直接执行机器码，速度远超解释执行。</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span><span class=lnt>7
+</span><span class=lnt>8
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// 这样的循环代码很容易被JIT优化</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kt>long</span><span class=w> </span><span class=nf>calculate</span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>n</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kt>long</span><span class=w> </span><span class=n>sum</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>n</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=o>++</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>sum</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>i</span><span class=p>;</span><span class=w>  </span><span class=c1>// 热点代码，会被JIT编译优化</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=k>return</span><span class=w> </span><span class=n>sum</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p>JIT编译器有两种：</p><ul><li><strong>C1编译器（Client）</strong>：编译速度快，优化程度一般</li><li><strong>C2编译器（Server）</strong>：编译速度慢，但优化程度高</li></ul><p>现代JVM采用<strong>分层编译</strong>策略，先用C1快速编译，再用C2深度优化。</p><h3 id=8-垃圾回收gc自动内存管理>8. 垃圾回收（GC）：自动内存管理</h3><p>堆是存放对象的区域，如果不及时清理无用的对象，内存迟早会耗尽。<strong>垃圾回收（GC）</strong> 就是JVM自动管理堆内存的机制。</p><h4 id=堆内存分代模型>堆内存分代模型</h4><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span><span class=lnt>2
+</span><span class=lnt>3
+</span><span class=lnt>4
+</span><span class=lnt>5
+</span><span class=lnt>6
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-fallback data-lang=fallback><span class=line><span class=cl>堆内存布局：
+</span></span><span class=line><span class=cl>┌─────────────────┬─────────────────┐
+</span></span><span class=line><span class=cl>│   年轻代(Young)  │   老年代(Old)    │
+</span></span><span class=line><span class=cl>├─────┬─────┬─────┼─────────────────┤
+</span></span><span class=line><span class=cl>│Eden │ S0  │ S1  │   Old Generation │
+</span></span><span class=line><span class=cl>└─────┴─────┴─────┴─────────────────┘
+</span></span></code></pre></td></tr></table></div></div><ul><li><strong>Eden区</strong>：新对象首先分配在这里</li><li><strong>Survivor区（S0、S1）</strong>：经过一次GC后存活的对象</li><li><strong>老年代</strong>：长期存活的对象最终会被移到这里</li></ul><h4 id=gc触发时机与过程>GC触发时机与过程</h4><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>GCDemo</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>main</span><span class=p>(</span><span class=n>String</span><span class=o>[]</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>List</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>list</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>ArrayList</span><span class=o>&lt;&gt;</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 不断创建对象，观察GC行为</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=kt>int</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=w> </span><span class=o>&lt;</span><span class=w> </span><span class=n>100000</span><span class=p>;</span><span class=w> </span><span class=n>i</span><span class=o>++</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>list</span><span class=p>.</span><span class=na>add</span><span class=p>(</span><span class=s>&#34;String &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>i</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 每1000次打印一下堆使用情况</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>i</span><span class=w> </span><span class=o>%</span><span class=w> </span><span class=n>1000</span><span class=w> </span><span class=o>==</span><span class=w> </span><span class=n>0</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>Runtime</span><span class=w> </span><span class=n>runtime</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>Runtime</span><span class=p>.</span><span class=na>getRuntime</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=kt>long</span><span class=w> </span><span class=n>used</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>runtime</span><span class=p>.</span><span class=na>totalMemory</span><span class=p>()</span><span class=w> </span><span class=o>-</span><span class=w> </span><span class=n>runtime</span><span class=p>.</span><span class=na>freeMemory</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>                </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;已使用内存: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>used</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;MB&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=9-内存模型与线程安全>9. 内存模型与线程安全</h3><p>JVM内存模型（JMM）定义了多线程环境下内存的可见性规则：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>MemoryModelDemo</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>volatile</span><span class=w> </span><span class=kt>boolean</span><span class=w> </span><span class=n>flag</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>false</span><span class=p>;</span><span class=w>  </span><span class=c1>// volatile保证可见性</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>count</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>writer</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>count</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>42</span><span class=p>;</span><span class=w>      </span><span class=c1>// 1. 写入count</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>flag</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=kc>true</span><span class=p>;</span><span class=w>     </span><span class=c1>// 2. 写入flag（volatile）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>reader</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>if</span><span class=w> </span><span class=p>(</span><span class=n>flag</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>      </span><span class=c1>// 3. 读取flag</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 由于volatile的happens-before规则</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// 这里一定能看到count=42</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=n>count</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>happens-before规则</strong>保证了内存操作的有序性：</p><ul><li>程序顺序规则：单线程内，代码按顺序执行</li><li>volatile规则：volatile写happens-before后续的volatile读</li><li>锁规则：unlock happens-before 后续的lock</li><li>线程启动规则：Thread.start() happens-before 线程内的所有操作</li></ul><h2 id=六性能调优与监控>六、性能调优与监控</h2><p>了解了JVM的运行机制后，我们就能更好地进行性能调优。以下是一些常用的JVM参数和监控手段：</p><h3 id=jvm调优参数>JVM调优参数</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl><span class=c1># 堆内存设置</span>
+</span></span><span class=line><span class=cl>-Xms2g -Xmx4g              <span class=c1># 初始堆2G，最大堆4G</span>
+</span></span><span class=line><span class=cl>-XX:NewRatio<span class=o>=</span><span class=m>3</span>             <span class=c1># 老年代:年轻代 = 3:1</span>
+</span></span><span class=line><span class=cl>-XX:SurvivorRatio<span class=o>=</span><span class=m>8</span>        <span class=c1># Eden:Survivor = 8:1</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># GC选择</span>
+</span></span><span class=line><span class=cl>-XX:+UseG1GC               <span class=c1># 使用G1垃圾收集器</span>
+</span></span><span class=line><span class=cl>-XX:MaxGCPauseMillis<span class=o>=</span><span class=m>200</span>   <span class=c1># G1最大停顿时间200ms</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># JIT编译优化</span>
+</span></span><span class=line><span class=cl>-XX:+TieredCompilation     <span class=c1># 开启分层编译</span>
+</span></span><span class=line><span class=cl>-XX:CompileThreshold<span class=o>=</span><span class=m>10000</span> <span class=c1># 方法调用10000次后JIT编译</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=c1># 内存溢出时生成dump文件</span>
+</span></span><span class=line><span class=cl>-XX:+HeapDumpOnOutOfMemoryError
+</span></span><span class=line><span class=cl>-XX:HeapDumpPath<span class=o>=</span>/tmp/heapdump.hprof
+</span></span></code></pre></td></tr></table></div></div><h3 id=性能监控工具>性能监控工具</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// 使用JMX监控JVM状态</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>JVMMonitor</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>printMemoryInfo</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>MemoryMXBean</span><span class=w> </span><span class=n>memoryBean</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ManagementFactory</span><span class=p>.</span><span class=na>getMemoryMXBean</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>MemoryUsage</span><span class=w> </span><span class=n>heapUsage</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>memoryBean</span><span class=p>.</span><span class=na>getHeapMemoryUsage</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;堆内存使用情况:&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;已使用: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>heapUsage</span><span class=p>.</span><span class=na>getUsed</span><span class=p>()</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;MB&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;最大值: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>heapUsage</span><span class=p>.</span><span class=na>getMax</span><span class=p>()</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>1024</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;MB&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;使用率: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=p>(</span><span class=n>heapUsage</span><span class=p>.</span><span class=na>getUsed</span><span class=p>()</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>100</span><span class=p>.</span><span class=na>0</span><span class=w> </span><span class=o>/</span><span class=w> </span><span class=n>heapUsage</span><span class=p>.</span><span class=na>getMax</span><span class=p>())</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;%&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>printGCInfo</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>List</span><span class=o>&lt;</span><span class=n>GarbageCollectorMXBean</span><span class=o>&gt;</span><span class=w> </span><span class=n>gcBeans</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ManagementFactory</span><span class=p>.</span><span class=na>getGarbageCollectorMXBeans</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>GarbageCollectorMXBean</span><span class=w> </span><span class=n>gcBean</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>gcBeans</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;GC名称: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>gcBean</span><span class=p>.</span><span class=na>getName</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;GC次数: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>gcBean</span><span class=p>.</span><span class=na>getCollectionCount</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;GC时间: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>gcBean</span><span class=p>.</span><span class=na>getCollectionTime</span><span class=p>()</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;ms&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=七开发中的常见问题与解决方案>七、开发中的常见问题与解决方案</h2><h3 id=1-类加载问题>1. 类加载问题</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// ClassNotFoundException vs NoClassDefFoundError</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>ClassLoadingIssue</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>main</span><span class=p>(</span><span class=n>String</span><span class=o>[]</span><span class=w> </span><span class=n>args</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>try</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=c1>// ClassNotFoundException: 编译时类存在，运行时找不到</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>Class</span><span class=p>.</span><span class=na>forName</span><span class=p>(</span><span class=s>&#34;com.example.MissingClass&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w> </span><span class=k>catch</span><span class=w> </span><span class=p>(</span><span class=n>ClassNotFoundException</span><span class=w> </span><span class=n>e</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>System</span><span class=p>.</span><span class=na>out</span><span class=p>.</span><span class=na>println</span><span class=p>(</span><span class=s>&#34;类未找到: &#34;</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>e</span><span class=p>.</span><span class=na>getMessage</span><span class=p>());</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// NoClassDefFoundError: 编译时和加载时都存在，但初始化时出错</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=c1>// 通常是静态代码块抛异常导致</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=2-内存泄漏排查>2. 内存泄漏排查</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// 常见的内存泄漏场景</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>MemoryLeakDemo</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=n>List</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;</span><span class=w> </span><span class=n>cache</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>ArrayList</span><span class=o>&lt;&gt;</span><span class=p>();</span><span class=w>  </span><span class=c1>// 静态集合持有对象引用</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>addToCache</span><span class=p>(</span><span class=n>Object</span><span class=w> </span><span class=n>obj</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>cache</span><span class=p>.</span><span class=na>add</span><span class=p>(</span><span class=n>obj</span><span class=p>);</span><span class=w>  </span><span class=c1>// 对象永远不会被GC回收</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 解决方案：使用WeakReference</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kd>static</span><span class=w> </span><span class=n>List</span><span class=o>&lt;</span><span class=n>WeakReference</span><span class=o>&lt;</span><span class=n>Object</span><span class=o>&gt;&gt;</span><span class=w> </span><span class=n>weakCache</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>ArrayList</span><span class=o>&lt;&gt;</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>addToWeakCache</span><span class=p>(</span><span class=n>Object</span><span class=w> </span><span class=n>obj</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>weakCache</span><span class=p>.</span><span class=na>add</span><span class=p>(</span><span class=k>new</span><span class=w> </span><span class=n>WeakReference</span><span class=o>&lt;&gt;</span><span class=p>(</span><span class=n>obj</span><span class=p>));</span><span class=w>  </span><span class=c1>// 允许GC回收</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h3 id=3-线程安全与性能平衡>3. 线程安全与性能平衡</h3><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>ThreadSafetyDemo</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 方案1：synchronized - 简单但性能较差</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=kt>int</span><span class=w> </span><span class=n>count1</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>0</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kd>synchronized</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>increment1</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>count1</span><span class=o>++</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 方案2：AtomicInteger - 无锁，性能更好</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=n>AtomicInteger</span><span class=w> </span><span class=n>count2</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>AtomicInteger</span><span class=p>(</span><span class=n>0</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>increment2</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>count2</span><span class=p>.</span><span class=na>incrementAndGet</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 方案3：ThreadLocal - 线程隔离，避免竞争</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>private</span><span class=w> </span><span class=n>ThreadLocal</span><span class=o>&lt;</span><span class=n>Integer</span><span class=o>&gt;</span><span class=w> </span><span class=n>count3</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=n>ThreadLocal</span><span class=p>.</span><span class=na>withInitial</span><span class=p>(()</span><span class=w> </span><span class=o>-&gt;</span><span class=w> </span><span class=n>0</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=kt>void</span><span class=w> </span><span class=nf>increment3</span><span class=p>()</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>count3</span><span class=p>.</span><span class=na>set</span><span class=p>(</span><span class=n>count3</span><span class=p>.</span><span class=na>get</span><span class=p>()</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=n>1</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h2 id=八实战分析一个真实的性能问题>八、实战：分析一个真实的性能问题</h2><p>假设我们遇到了一个接口响应慢的问题，通过JVM分析来定位：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=c1>// 问题代码：频繁的字符串拼接</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=kd>public</span><span class=w> </span><span class=kd>class</span> <span class=nc>PerformanceIssue</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=n>String</span><span class=w> </span><span class=nf>buildLargeString</span><span class=p>(</span><span class=n>List</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>items</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>String</span><span class=w> </span><span class=n>result</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=s>&#34;&#34;</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>String</span><span class=w> </span><span class=n>item</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>items</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>result</span><span class=w> </span><span class=o>+=</span><span class=w> </span><span class=n>item</span><span class=w> </span><span class=o>+</span><span class=w> </span><span class=s>&#34;,&#34;</span><span class=p>;</span><span class=w>  </span><span class=c1>// 每次都创建新的String对象</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>result</span><span class=p>;</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=c1>// 优化后：使用StringBuilder</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=kd>public</span><span class=w> </span><span class=n>String</span><span class=w> </span><span class=nf>buildLargeStringOptimized</span><span class=p>(</span><span class=n>List</span><span class=o>&lt;</span><span class=n>String</span><span class=o>&gt;</span><span class=w> </span><span class=n>items</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=n>StringBuilder</span><span class=w> </span><span class=n>sb</span><span class=w> </span><span class=o>=</span><span class=w> </span><span class=k>new</span><span class=w> </span><span class=n>StringBuilder</span><span class=p>(</span><span class=n>items</span><span class=p>.</span><span class=na>size</span><span class=p>()</span><span class=w> </span><span class=o>*</span><span class=w> </span><span class=n>20</span><span class=p>);</span><span class=w>  </span><span class=c1>// 预估容量</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>for</span><span class=w> </span><span class=p>(</span><span class=n>String</span><span class=w> </span><span class=n>item</span><span class=w> </span><span class=p>:</span><span class=w> </span><span class=n>items</span><span class=p>)</span><span class=w> </span><span class=p>{</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>            </span><span class=n>sb</span><span class=p>.</span><span class=na>append</span><span class=p>(</span><span class=n>item</span><span class=p>).</span><span class=na>append</span><span class=p>(</span><span class=s>&#34;,&#34;</span><span class=p>);</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>        </span><span class=k>return</span><span class=w> </span><span class=n>sb</span><span class=p>.</span><span class=na>toString</span><span class=p>();</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>    </span><span class=p>}</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=p>}</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><p><strong>分析过程</strong>：</p><ol><li>通过JProfiler或VisualVM发现大量String对象创建</li><li>查看GC日志发现年轻代GC频繁</li><li>定位到字符串拼接代码</li><li>使用StringBuilder优化，性能提升10倍</li></ol><h2 id=总结>总结</h2><p>从一个简单的Class文件到在JVM中高效运行，Java代码经历了一系列精妙的设计：</p><ol><li><strong>编译与加载</strong>：Java源码编译成字节码，通过类加载器加载到JVM</li><li><strong>内存管理</strong>：运行时数据区的精心设计，让不同类型的数据各司其职</li><li><strong>执行优化</strong>：从解释执行到JIT编译，让Java越跑越快</li><li><strong>自动回收</strong>：GC机制解放了程序员的双手，但也需要我们理解其原理</li><li><strong>并发安全</strong>：JMM保证了多线程环境下的内存一致性</li></ol><p>理解这些底层机制，不仅能帮助我们写出更高效、更健壮的代码，还能在遇到性能问题和内存异常时，更有底气地去定位和解决。JVM的世界博大精深，这篇文章只是一个开始，希望能为你打开一扇深入了解JVM的窗户。</p><p>在实际开发中，建议大家：</p><ul><li>合理设置JVM参数，根据应用特点调优</li><li>定期监控JVM状态，及时发现问题</li><li>理解GC原理，避免内存泄漏</li><li>掌握性能分析工具，快速定位瓶颈</li></ul><p>只有深入理解了JVM的运行机制，我们才能真正驾驭Java这门语言，写出高性能的企业级应用。</p></section><footer class=article-footer><section class=article-tags><a href=/tags/jvm/>JVM</a>
+<a href=/tags/class%E6%96%87%E4%BB%B6/>Class文件</a>
+<a href=/tags/%E7%B1%BB%E5%8A%A0%E8%BD%BD/>类加载</a></section><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><aside class=related-content--wrapper><h2 class=section-title>Related content</h2><div class=related-content><div class="flex article-list--tile"><article><a href=/p/jvm%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8%E7%9A%84%E8%BF%9B%E5%8C%96%E8%BF%98%E9%9C%80%E8%A6%81jvm%E8%B0%83%E4%BC%98%E5%90%97/><div class=article-details><h2 class=article-title>JVM垃圾回收器的进化：还需要JVM调优吗？</h2></div></a></article></div></div></aside><div class=disqus-container><div id=disqus_thread></div><script>window.disqus_config=function(){},function(){if(["localhost","127.0.0.1"].indexOf(window.location.hostname)!=-1){document.getElementById("disqus_thread").innerHTML="Disqus comments not available by default when the website is previewed locally.";return}var t=document,e=t.createElement("script");e.async=!0,e.src="//hugo-theme-stack.disqus.com/embed.js",e.setAttribute("data-timestamp",+new Date),(t.head||t.body).appendChild(e)}()</script><noscript>Please enable JavaScript to view the <a href=https://disqus.com/?ref_noscript>comments powered by Disqus.</a></noscript><a href=https://disqus.com class=dsq-brlink>comments powered by <span class=logo-disqus>Disqus</span></a></div><style>.disqus-container{background-color:var(--card-background);border-radius:var(--card-border-radius);box-shadow:var(--shadow-l1);padding:var(--card-padding)}</style><script>window.addEventListener("onColorSchemeChange",e=>{typeof DISQUS=="object"&&DISQUS.reset({reload:!0})})</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2025 Glad You Came</section><section class=powerby>Built with <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a><br>Theme <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.30.0>Stack</a></b> designed by <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a></section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

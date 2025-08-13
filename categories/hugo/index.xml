@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Hugo on Glad You Came</title><link>https://tech-gt.github.io/categories/hugo/</link><description>Recent content in Hugo on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 18 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://tech-gt.github.io/categories/hugo/index.xml" rel="self" type="application/rss+xml"/><item><title>让 Hugo Stack 主题完美支持 Mermaid 流程图</title><link>https://tech-gt.github.io/p/%E8%AE%A9-hugo-stack-%E4%B8%BB%E9%A2%98%E5%AE%8C%E7%BE%8E%E6%94%AF%E6%8C%81-mermaid-%E6%B5%81%E7%A8%8B%E5%9B%BE/</link><pubDate>Tue, 18 Jul 2023 00:00:00 +0000</pubDate><guid>https://tech-gt.github.io/p/%E8%AE%A9-hugo-stack-%E4%B8%BB%E9%A2%98%E5%AE%8C%E7%BE%8E%E6%94%AF%E6%8C%81-mermaid-%E6%B5%81%E7%A8%8B%E5%9B%BE/</guid><description>&lt;p>在日常写博客的过程中，流程图、时序图等可视化表达越来越重要。Mermaid 作为一款轻量级的图表语法工具，非常适合用来在 Markdown 里画图。但 Hugo Stack 主题默认并不支持 Mermaid 渲染，本文就来分享一下我是如何让它完美支持 Mermaid 的。&lt;/p>
+&lt;h2 id="问题分析">问题分析
+&lt;/h2>&lt;p>Hugo 的 Goldmark 渲染器默认不会把 &lt;code>mermaid&lt;/code> 代码块当作图表处理，而 Stack 主题本身也没有内置 Mermaid 的支持。网上的教程五花八门，有的让你魔改主题，有的让你用第三方插件，但都不太优雅。&lt;/p>
+&lt;h2 id="解决思路">解决思路
+&lt;/h2>&lt;p>我的目标是：&lt;/p>
+&lt;ul>
+&lt;li>既能用代码块的方式写 Mermaid，也能用短代码（shortcode）&lt;/li>
+&lt;li>尽量不动主题源码，升级主题时不容易冲突&lt;/li>
+&lt;li>配置简单，易于维护&lt;/li>
+&lt;/ul>
+&lt;h2 id="配置步骤">配置步骤
+&lt;/h2>&lt;h3 id="1-配置-goldmark-支持-mermaid-代码块">1. 配置 Goldmark 支持 Mermaid 代码块
+&lt;/h3>&lt;p>编辑 &lt;code>config/_default/markup.toml&lt;/code>，如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-toml" data-lang="toml">&lt;span class="line">&lt;span class="cl">&lt;span class="p">[&lt;/span>&lt;span class="nx">goldmark&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">extensions&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">passthrough&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">delimiters&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">block&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="p">[[&lt;/span>&lt;span class="s1">&amp;#39;\\[&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;\\]&amp;#39;&lt;/span>&lt;span class="p">],&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;$$&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;$$&amp;#39;&lt;/span>&lt;span class="p">],&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;```mermaid&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;```&amp;#39;&lt;/span>&lt;span class="p">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">inline&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="p">[[&lt;/span>&lt;span class="s1">&amp;#39;\\(&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;\\)&amp;#39;&lt;/span>&lt;span class="p">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这样 Hugo 就不会转义 mermaid 代码块内容。&lt;/p>
+&lt;h3 id="2-新建-mermaid-短代码">2. 新建 Mermaid 短代码
+&lt;/h3>&lt;p>在 &lt;code>layouts/shortcodes/mermaid.html&lt;/code> 新建如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">div&lt;/span> &lt;span class="na">class&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;mermaid&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">{{- .Inner -}}
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">div&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>以后写博客时可以这样用：&lt;/p>
+&lt;pre class="no-mermaid">
+&amp;#123;&amp;#123;&amp;lt; mermaid &amp;gt;&amp;#125;&amp;#125;
+graph TD
+A[开始] --> B{判断}
+B -->|是| C[执行]
+B -->|否| D[结束]
+C --> D
+&amp;#123;&amp;#123;&amp;lt; /mermaid &amp;gt;&amp;#125;&amp;#125;
+&lt;/pre>
+&lt;h3 id="3-全局引入-mermaid-脚本">3. 全局引入 Mermaid 脚本
+&lt;/h3>&lt;p>在 &lt;code>layouts/partials/head/custom.html&lt;/code> 新建如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">&lt;span class="line">&lt;span class="cl">&lt;span class="c">&amp;lt;!-- Mermaid Diagram Support --&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">script&lt;/span> &lt;span class="na">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;module&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kr">import&lt;/span> &lt;span class="nx">mermaid&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">mermaid&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">initialize&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">startOnLoad&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">theme&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;default&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">flowchart&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">useMaxWidth&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">htmlLabels&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">});&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">script&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这样每个页面都会自动加载 Mermaid。&lt;/p>
+&lt;h2 id="踩过的坑">踩过的坑
+&lt;/h2>&lt;ul>
+&lt;li>&lt;strong>重复定义 Goldmark 配置&lt;/strong>：一开始我在 &lt;code>markup.toml&lt;/code> 里多次写了 &lt;code>[goldmark.extensions.passthrough.delimiters]&lt;/code>，导致 Hugo 报错。正确做法是合并到同一个表里。&lt;/li>
+&lt;li>&lt;strong>主题覆盖问题&lt;/strong>：Stack 主题有自己的 head 模板，直接加在 &lt;code>head.html&lt;/code> 里可能会被覆盖。用 &lt;code>custom.html&lt;/code> 是最保险的。&lt;/li>
+&lt;li>&lt;strong>浏览器缓存&lt;/strong>：有时候改完配置没生效，多刷新几次或者清空缓存就好了。&lt;/li>
+&lt;/ul>
+&lt;h2 id="最终效果">最终效果
+&lt;/h2>&lt;p>现在无论是用代码块还是短代码，Mermaid 图表都能在博客里完美显示了！&lt;/p>
+&lt;p>效果如下：&lt;/p>
+&lt;div class="mermaid">
+graph TD
+A[开始] --> B{判断}
+B -->|是| C[执行]
+B -->|否| D[结束]
+C --> D
+&lt;/div></description></item></channel></rss>

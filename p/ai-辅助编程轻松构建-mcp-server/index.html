@@ -1,0 +1,195 @@
+<!doctype html><html lang=en-us dir=ltr><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><meta name=description content="构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。"><title>AI 辅助编程：轻松构建 MCP Server</title><link rel=canonical href=https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/><link rel=stylesheet href=/scss/style.min.946cca6c6259ef94ac55abfae7c7bf3291ea3ed5eea17ef77500b257217c6710.css><meta property='og:title' content="AI 辅助编程：轻松构建 MCP Server"><meta property='og:description' content="构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。"><meta property='og:url' content='https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/'><meta property='og:site_name' content='Glad You Came'><meta property='og:type' content='article'><meta property='article:section' content='Post'><meta property='article:tag' content='MCP'><meta property='article:tag' content='AI辅助编程'><meta property='article:tag' content='LLM'><meta property='article:published_time' content='2025-06-20T15:30:00+08:00'><meta property='article:modified_time' content='2025-06-20T15:30:00+08:00'><meta name=twitter:title content="AI 辅助编程：轻松构建 MCP Server"><meta name=twitter:description content="构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。"><link rel="shortcut icon" href=/favicon.png><script type=module>
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ 
+    startOnLoad: true,
+    theme: 'default',
+    flowchart: {
+      useMaxWidth: true,
+      htmlLabels: true
+    }
+  });
+</script></head><body class=article-page><script>(function(){const e="StackColorScheme";localStorage.getItem(e)||localStorage.setItem(e,"auto")})()</script><script>(function(){const t="StackColorScheme",e=localStorage.getItem(t),n=window.matchMedia("(prefers-color-scheme: dark)").matches===!0;e=="dark"||e==="auto"&&n?document.documentElement.dataset.scheme="dark":document.documentElement.dataset.scheme="light"})()</script><div class="container main-container flex on-phone--column extended"><aside class="sidebar left-sidebar sticky"><button class="hamburger hamburger--spin" type=button id=toggle-menu aria-label="Toggle Menu">
+<span class=hamburger-box><span class=hamburger-inner></span></span></button><header><figure class=site-avatar><a href=/><img src=/img/avatar_hu_b574cd48e619b5ee.png width=300 height=300 class=site-logo loading=lazy alt=Avatar>
+</a><span class=emoji>🍥</span></figure><div class=site-meta><h1 class=site-name><a href=/>Glad You Came</a></h1><h2 class=site-description>All that counts is here and now.</h2></div></header><ol class=menu-social><li><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank title=GitHub rel=me><svg class="icon icon-tabler icon-tabler-brand-github" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6.0 00-1.3-3.2 4.2 4.2.0 00-.1-3.2s-1.1-.3-3.5 1.3a12.3 12.3.0 00-6.2.0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2.0 00-.1 3.2A4.6 4.6.0 004 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></a></li><li><a href=https://twitter.com target=_blank title=Twitter rel=me><svg class="icon icon-tabler icon-tabler-brand-twitter" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M22 4.01c-1 .49-1.98.689-3 .99-1.121-1.265-2.783-1.335-4.38-.737S11.977 6.323 12 8v1c-3.245.083-6.135-1.395-8-4 0 0-4.182 7.433 4 11-1.872 1.247-3.739 2.088-6 2 3.308 1.803 6.913 2.423 10.034 1.517 3.58-1.04 6.522-3.723 7.651-7.742a13.84 13.84.0 00.497-3.753C20.18 7.773 21.692 5.25 22 4.009z"/></svg></a></li></ol><ol class=menu id=main-menu><li><a href=/><svg class="icon icon-tabler icon-tabler-home" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><polyline points="5 12 3 12 12 3 21 12 19 12"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/><path d="M9 21v-6a2 2 0 012-2h2a2 2 0 012 2v6"/></svg>
+<span>Home</span></a></li><li><a href=/archives/><svg class="icon icon-tabler icon-tabler-archive" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><rect x="3" y="4" width="18" height="4" rx="2"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+<span>Archives</span></a></li><li><a href=/search/><svg class="icon icon-tabler icon-tabler-search" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/></svg>
+<span>Search</span></a></li><li><a href=/links/><svg class="icon icon-tabler icon-tabler-link" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M10 14a3.5 3.5.0 005 0l4-4a3.5 3.5.0 00-5-5l-.5.5"/><path d="M14 10a3.5 3.5.0 00-5 0l-4 4a3.5 3.5.0 005 5l.5-.5"/></svg>
+<span>Links</span></a></li><li class=menu-bottom-section><ol class=menu><li id=dark-mode-toggle><svg class="icon icon-tabler icon-tabler-toggle-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="8" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<svg class="icon icon-tabler icon-tabler-toggle-right" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="16" cy="12" r="2"/><rect x="2" y="6" width="20" height="12" rx="6"/></svg>
+<span>Dark Mode</span></li></ol></li></ol></aside><aside class="sidebar right-sidebar sticky"><section class="widget archives"><div class=widget-icon><svg class="icon icon-tabler icon-tabler-hash" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><line x1="5" y1="9" x2="19" y2="9"/><line x1="5" y1="15" x2="19" y2="15"/><line x1="11" y1="4" x2="7" y2="20"/><line x1="17" y1="4" x2="13" y2="20"/></svg></div><h2 class="widget-title section-title">Table of contents</h2><div class=widget--toc><nav id=TableOfContents><ol><li><ol><li><a href=#mcp-server-核心概念>MCP Server 核心概念</a></li><li><a href=#基于-ai-辅助编写-mcp-server>基于 AI 辅助编写 MCP Server</a><ol><li><a href=#第一步理解规范-understanding-the-spec>第一步：理解规范 (Understanding the Spec)</a></li><li><a href=#第二步搭建项目骨架-scaffolding>第二步：搭建项目骨架 (Scaffolding)</a></li><li><a href=#使用-inspector-调试-mcp-server>使用 inspector 调试 MCP Server</a></li></ol></li></ol></li></ol></nav></div></section></aside><main class="main full-width"><article class=main-article><header class=article-header><div class=article-details><header class=article-category><a href=/categories/%E6%8A%80%E6%9C%AF%E5%88%86%E4%BA%AB/>技术分享
+</a><a href=/categories/ai/>AI</a></header><div class=article-title-wrapper><h2 class=article-title><a href=/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/>AI 辅助编程：轻松构建 MCP Server</a></h2><h3 class=article-subtitle>构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。</h3></div><footer class=article-time><div><svg class="icon icon-tabler icon-tabler-calendar-time" width="56" height="56" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><path d="M11.795 21H5a2 2 0 01-2-2V7a2 2 0 012-2h12a2 2 0 012 2v4"/><circle cx="18" cy="18" r="4"/><path d="M15 3v4"/><path d="M7 3v4"/><path d="M3 11h16"/><path d="M18 16.496V18l1 1"/></svg>
+<time class=article-time--published>Jun 20, 2025</time></div><div><svg class="icon icon-tabler icon-tabler-clock" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>
+<time class=article-time--reading>2 minute read</time></div></footer></div></header><section class=article-content><p>构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。</p><h3 id=mcp-server-核心概念>MCP Server 核心概念</h3><p>在深入实践之前，我们先简单了解一下 MCP 的核心架构。MCP 遵循客户端-服务器模型：</p><ul><li><strong>MCP Client</strong>：通常内嵌在宿主应用（如 IDE、代码编辑器、聊天工具）中，负责与用户和 LLM 交互。Client一般不需要我们去开发。</li><li><strong>MCP Server</strong>：一个独立的进程，负责向客户端提供特定的能力，如工具（Tools）、上下文资源（Resources）等。</li></ul><h3 id=基于-ai-辅助编写-mcp-server>基于 AI 辅助编写 MCP Server</h3><p>在官方文档（https://modelcontextprotocol.io/quickstart/server） MCP Server 的开发方式，以及官方提供的各个语言的 SDK 的示例代码。
+写的挺清晰的，如果你懂代码，仔细看一遍很快就能上手，但在 AI 时代，从零自己去写肯定不可能了，官方其实也建议通过 AI 来帮我们实现 MCP，所以在文档中单独还提供了一个 Building MCP with LLMs 的章节。
+<img src=/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image.png width=1659 height=807 srcset="/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image_hu_115b709714e99c7e.png 480w, /p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image_hu_46cec8b9c02c52b8.png 1024w" loading=lazy alt="MCP Server" class=gallery-image data-flex-grow=205 data-flex-basis=493px></p><h4 id=第一步理解规范-understanding-the-spec>第一步：理解规范 (Understanding the Spec)</h4><p>大概思路如下：</p><p>在开始之前，收集必要的文档，以帮助 AI 了解 MCP：</p><p>访问 <a class=link href=https://modelcontextprotocol.io/llms-full.txt target=_blank rel=noopener>https://modelcontextprotocol.io/llms-full.txt</a> 并复制完整的文档文本。
+导航到 MCP 的 TypeScript 软件开发工具包（SDK）或 Python 软件开发工具包的代码仓库。
+复制（README）和其他相关文档。
+将这些文档粘贴到你与克劳德的对话中。
+提供了相关文档之后，向 AI 清晰地描述你想要构建的服务器类型：</p><p>你的服务器将公开哪些资源。
+它将提供哪些工具。
+它应该给出的任何提示。
+它需要与哪些外部系统进行交互。
+比如这是一个例子：构建一个 MCP 服务器，该服务器：</p><p>连接到我公司的 PostgreSQL 数据库。
+将表模式作为资源公开。
+提供用于运行只读 SQL 查询的工具。
+包含针对常见数据分析任务的提示。
+在实际测试中我发现，上面提到的 <a class=link href=https://modelcontextprotocol.io/llms-full.txt target=_blank rel=noopener>https://modelcontextprotocol.io/llms-full.txt</a> 这个文档就是整个文档站的内容，里面包含了很多构建 MCP Server 不需要的内容，反而会给模型造成干扰，大家可以直接参考下面的提示词：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-java data-lang=java><span class=line><span class=cl><span class=err>##</span><span class=w> </span><span class=n>需求</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=n>基于提供的</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>相关资料</span><span class=err>，</span><span class=n>帮我构建一个</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>Server</span><span class=err>，</span><span class=n>需求如下</span><span class=err>：</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>提供一个获取当前时间的工具</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>接收时区作为参数</span><span class=err>（</span><span class=n>可选</span><span class=err>）</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>编写清晰的注释和说明</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>要求功能简洁</span><span class=err>、</span><span class=n>只包含关键功能</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>使用</span><span class=w> </span><span class=n>TypeScript</span><span class=w> </span><span class=n>编写</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=n>请参考下面四个资料</span><span class=err>：</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=err>##</span><span class=w> </span><span class=o>[</span><span class=n>参考资料</span><span class=w> </span><span class=n>1</span><span class=o>]</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>基础介绍</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>粘贴</span><span class=w> </span><span class=n>https</span><span class=p>:</span><span class=c1>//modelcontextprotocol.io/introduction 里的内容。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=err>##</span><span class=w> </span><span class=o>[</span><span class=n>参考资料</span><span class=w> </span><span class=n>2</span><span class=o>]</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>核心架构</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>粘贴</span><span class=w> </span><span class=n>https</span><span class=p>:</span><span class=c1>//modelcontextprotocol.io/docs/concepts/architecture 里的内容。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=err>##</span><span class=w> </span><span class=o>[</span><span class=n>参考资料</span><span class=w> </span><span class=n>3</span><span class=o>]</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>Server</span><span class=w> </span><span class=n>开发指引</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>粘贴</span><span class=w> </span><span class=n>https</span><span class=p>:</span><span class=c1>//modelcontextprotocol.io/quickstart/server 里的内容。</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=err>##</span><span class=w> </span><span class=o>[</span><span class=n>参考资料</span><span class=w> </span><span class=n>4</span><span class=o>]</span><span class=w> </span><span class=n>MCP</span><span class=w> </span><span class=n>Typescript</span><span class=w> </span><span class=n>SDK</span><span class=w> </span><span class=n>文档</span><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w>
+</span></span></span><span class=line><span class=cl><span class=w></span><span class=o>-</span><span class=w> </span><span class=n>粘贴</span><span class=w> </span><span class=n>https</span><span class=p>:</span><span class=c1>//github.com/modelcontextprotocol/typescript-sdk/blob/main/README.md 里的内容。</span><span class=w>
+</span></span></span></code></pre></td></tr></table></div></div><h4 id=第二步搭建项目骨架-scaffolding>第二步：搭建项目骨架 (Scaffolding)</h4><p>下面是一个 AI 帮我生成好的 MCP Server 的关键代码：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt> 1
+</span><span class=lnt> 2
+</span><span class=lnt> 3
+</span><span class=lnt> 4
+</span><span class=lnt> 5
+</span><span class=lnt> 6
+</span><span class=lnt> 7
+</span><span class=lnt> 8
+</span><span class=lnt> 9
+</span><span class=lnt>10
+</span><span class=lnt>11
+</span><span class=lnt>12
+</span><span class=lnt>13
+</span><span class=lnt>14
+</span><span class=lnt>15
+</span><span class=lnt>16
+</span><span class=lnt>17
+</span><span class=lnt>18
+</span><span class=lnt>19
+</span><span class=lnt>20
+</span><span class=lnt>21
+</span><span class=lnt>22
+</span><span class=lnt>23
+</span><span class=lnt>24
+</span><span class=lnt>25
+</span><span class=lnt>26
+</span><span class=lnt>27
+</span><span class=lnt>28
+</span><span class=lnt>29
+</span><span class=lnt>30
+</span><span class=lnt>31
+</span><span class=lnt>32
+</span><span class=lnt>33
+</span><span class=lnt>34
+</span><span class=lnt>35
+</span><span class=lnt>36
+</span><span class=lnt>37
+</span><span class=lnt>38
+</span><span class=lnt>39
+</span><span class=lnt>40
+</span><span class=lnt>41
+</span><span class=lnt>42
+</span><span class=lnt>43
+</span><span class=lnt>44
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-javascript data-lang=javascript><span class=line><span class=cl><span class=kr>import</span> <span class=p>{</span> <span class=nx>McpServer</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;@modelcontextprotocol/sdk/server/mcp.js&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=kr>import</span> <span class=p>{</span> <span class=nx>StdioServerTransport</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;@modelcontextprotocol/sdk/server/stdio.js&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl><span class=kr>import</span> <span class=p>{</span> <span class=nx>z</span> <span class=p>}</span> <span class=nx>from</span> <span class=s2>&#34;zod&#34;</span><span class=p>;</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=kr>const</span> <span class=nx>server</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>McpServer</span><span class=p>({</span>
+</span></span><span class=line><span class=cl>  <span class=nx>name</span><span class=o>:</span> <span class=s2>&#34;TimeServer&#34;</span><span class=p>,</span> <span class=c1>// 服务器名称
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=nx>version</span><span class=o>:</span> <span class=s2>&#34;1.0.0&#34;</span><span class=p>,</span> <span class=c1>// 服务器版本
+</span></span></span><span class=line><span class=cl><span class=c1></span><span class=p>});</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nx>server</span><span class=p>.</span><span class=nx>tool</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>  <span class=s2>&#34;getCurrentTime&#34;</span><span class=p>,</span> <span class=c1>// 工具名称,
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=s2>&#34;根据时区（可选）获取当前时间&#34;</span><span class=p>,</span> <span class=c1>// 工具描述
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>timezone</span><span class=o>:</span> <span class=nx>z</span>
+</span></span><span class=line><span class=cl>      <span class=p>.</span><span class=nx>string</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>      <span class=p>.</span><span class=nx>optional</span><span class=p>()</span>
+</span></span><span class=line><span class=cl>      <span class=p>.</span><span class=nx>describe</span><span class=p>(</span>
+</span></span><span class=line><span class=cl>        <span class=s2>&#34;时区，例如 &#39;Asia/Shanghai&#39;, &#39;America/New_York&#39; 等（如不提供，则使用系统默认时区）&#34;</span>
+</span></span><span class=line><span class=cl>      <span class=p>),</span>
+</span></span><span class=line><span class=cl>  <span class=p>},</span>
+</span></span><span class=line><span class=cl>  <span class=kr>async</span> <span class=p>({</span> <span class=nx>timezone</span> <span class=p>})</span> <span class=p>=&gt;</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>     <span class=c1>// 具体工具实现，这里省略
+</span></span></span><span class=line><span class=cl><span class=c1></span>  <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>);</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=cm>/**
+</span></span></span><span class=line><span class=cl><span class=cm> * 启动服务器，连接到标准输入/输出传输
+</span></span></span><span class=line><span class=cl><span class=cm> */</span>
+</span></span><span class=line><span class=cl><span class=kr>async</span> <span class=kd>function</span> <span class=nx>startServer</span><span class=p>()</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>  <span class=k>try</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=s2>&#34;正在启动 MCP 时间服务器...&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 创建标准输入/输出传输
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=kr>const</span> <span class=nx>transport</span> <span class=o>=</span> <span class=k>new</span> <span class=nx>StdioServerTransport</span><span class=p>();</span>
+</span></span><span class=line><span class=cl>    <span class=c1>// 连接服务器到传输
+</span></span></span><span class=line><span class=cl><span class=c1></span>    <span class=kr>await</span> <span class=nx>server</span><span class=p>.</span><span class=nx>connect</span><span class=p>(</span><span class=nx>transport</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=nx>console</span><span class=p>.</span><span class=nx>log</span><span class=p>(</span><span class=s2>&#34;MCP 时间服务器已启动，等待请求...&#34;</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span> <span class=k>catch</span> <span class=p>(</span><span class=nx>error</span><span class=p>)</span> <span class=p>{</span>
+</span></span><span class=line><span class=cl>    <span class=nx>console</span><span class=p>.</span><span class=nx>error</span><span class=p>(</span><span class=s2>&#34;启动服务器时出错:&#34;</span><span class=p>,</span> <span class=nx>error</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>    <span class=nx>process</span><span class=p>.</span><span class=nx>exit</span><span class=p>(</span><span class=mi>1</span><span class=p>);</span>
+</span></span><span class=line><span class=cl>  <span class=p>}</span>
+</span></span><span class=line><span class=cl><span class=p>}</span>
+</span></span><span class=line><span class=cl>
+</span></span><span class=line><span class=cl><span class=nx>startServer</span><span class=p>();</span>
+</span></span></code></pre></td></tr></table></div></div><p>其实代码非常简单，我们可以拆分为三部分来理解：</p><p>第一步：使用官方提供的 @modelcontextprotocol/sdk/server/mcp.js 包，创建一个 McpServer 实例。
+第二步：使用 server.tool 定义提供的工具方法，包括工具方法的名称、工具方法的描述、工具方法的参数、工具方法的具体实现逻辑。</p><p>另外使用了 &ldquo;zod&rdquo; 这个包定义了方法参数的类型以及描述。
+第三步：启动 Server，并且使用 SDK 中导出的 StdioServerTransport 来定义工具使用 STDIO 通信协议，等待外部的标准输入，并且把工具的执行结果转化为标准输出反馈到外部。</p><p>就是这么简单，我们只需要按照这个模板来添加更多的工具实现就可以了，另外 Resources、Prompt 的编写方式其实都是类似的，大家只需要按照这套提示词模板，定义好自己的需求，AI（Claude 的准确性最高）基本上都能比较完整的实现。</p><h4 id=使用-inspector-调试-mcp-server>使用 inspector 调试 MCP Server</h4><p>开发完成后，我们可以直接使用官方提供的 MCP Server 调试工具（@modelcontextprotocol/inspector）来进行调试。
+比如我们可以调试我们刚刚开发好的工具，这里直接使用 node 运行我们本地构建好的代码：</p><div class=highlight><div class=chroma><table class=lntable><tr><td class=lntd><pre tabindex=0 class=chroma><code><span class=lnt>1
+</span></code></pre></td><td class=lntd><pre tabindex=0 class=chroma><code class=language-bash data-lang=bash><span class=line><span class=cl>npx @modelcontextprotocol/inspector node dist/index.js
+</span></span></code></pre></td></tr></table></div></div><p>启动成功后，它会在我们的本地监听 6274 端口，我们点击 Connect
+连接成功后，我们点击 List Tools
+然后可以看到当前 MCP Server 定义的所有工具，我们这里定义了一个获取当前时间的工具，我们点击这个工具，可以对它进行调试。</p></section><footer class=article-footer><section class=article-tags><a href=/tags/mcp/>MCP</a>
+<a href=/tags/ai%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B/>AI辅助编程</a>
+<a href=/tags/llm/>LLM</a></section><section class=article-copyright><svg class="icon icon-tabler icon-tabler-copyright" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z"/><circle cx="12" cy="12" r="9"/><path d="M14.5 9a3.5 4 0 100 6"/></svg>
+<span>Licensed under CC BY-NC-SA 4.0</span></section></footer></article><aside class=related-content--wrapper><h2 class=section-title>Related content</h2><div class=related-content><div class="flex article-list--tile"><article><a href=/p/%E8%AE%A9-hugo-stack-%E4%B8%BB%E9%A2%98%E5%AE%8C%E7%BE%8E%E6%94%AF%E6%8C%81-mermaid-%E6%B5%81%E7%A8%8B%E5%9B%BE/><div class=article-details><h2 class=article-title>让 Hugo Stack 主题完美支持 Mermaid 流程图</h2></div></a></article></div></div></aside><div class=disqus-container><div id=disqus_thread></div><script>window.disqus_config=function(){},function(){if(["localhost","127.0.0.1"].indexOf(window.location.hostname)!=-1){document.getElementById("disqus_thread").innerHTML="Disqus comments not available by default when the website is previewed locally.";return}var t=document,e=t.createElement("script");e.async=!0,e.src="//hugo-theme-stack.disqus.com/embed.js",e.setAttribute("data-timestamp",+new Date),(t.head||t.body).appendChild(e)}()</script><noscript>Please enable JavaScript to view the <a href=https://disqus.com/?ref_noscript>comments powered by Disqus.</a></noscript><a href=https://disqus.com class=dsq-brlink>comments powered by <span class=logo-disqus>Disqus</span></a></div><style>.disqus-container{background-color:var(--card-background);border-radius:var(--card-border-radius);box-shadow:var(--shadow-l1);padding:var(--card-padding)}</style><script>window.addEventListener("onColorSchemeChange",e=>{typeof DISQUS=="object"&&DISQUS.reset({reload:!0})})</script><footer class=site-footer><section class=copyright>&copy;
+2020 -
+2025 Glad You Came</section><section class=powerby>Built with <a href=https://gohugo.io/ target=_blank rel=noopener>Hugo</a><br>Theme <b><a href=https://github.com/CaiJimmy/hugo-theme-stack target=_blank rel=noopener data-version=3.30.0>Stack</a></b> designed by <a href=https://jimmycai.com target=_blank rel=noopener>Jimmy</a></section></footer><div class=pswp tabindex=-1 role=dialog aria-hidden=true><div class=pswp__bg></div><div class=pswp__scroll-wrap><div class=pswp__container><div class=pswp__item></div><div class=pswp__item></div><div class=pswp__item></div></div><div class="pswp__ui pswp__ui--hidden"><div class=pswp__top-bar><div class=pswp__counter></div><button class="pswp__button pswp__button--close" title="Close (Esc)"></button>
+<button class="pswp__button pswp__button--share" title=Share></button>
+<button class="pswp__button pswp__button--fs" title="Toggle fullscreen"></button>
+<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button><div class=pswp__preloader><div class=pswp__preloader__icn><div class=pswp__preloader__cut><div class=pswp__preloader__donut></div></div></div></div></div><div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class=pswp__share-tooltip></div></div><button class="pswp__button pswp__button--arrow--left" title="Previous (arrow left)">
+</button>
+<button class="pswp__button pswp__button--arrow--right" title="Next (arrow right)"></button><div class=pswp__caption><div class=pswp__caption__center></div></div></div></div></div><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.js integrity="sha256-ePwmChbbvXbsO02lbM3HoHbSHTHFAeChekF1xKJdleo=" crossorigin=anonymous defer></script><script src=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe-ui-default.min.js integrity="sha256-UKkzOn/w1mBxRmLLGrSeyB4e1xbrp4xylgAWb3M42pU=" crossorigin=anonymous defer></script><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/default-skin/default-skin.min.css crossorigin=anonymous><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/photoswipe@4.1.3/dist/photoswipe.min.css crossorigin=anonymous></main></div><script src=https://cdn.jsdelivr.net/npm/node-vibrant@3.1.6/dist/vibrant.min.js integrity="sha256-awcR2jno4kI5X0zL8ex0vi2z+KMkF24hUW8WePSA9HM=" crossorigin=anonymous></script><script type=text/javascript src=/ts/main.1e9a3bafd846ced4c345d084b355fb8c7bae75701c338f8a1f8a82c780137826.js defer></script><script>(function(){const e=document.createElement("link");e.href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap",e.type="text/css",e.rel="stylesheet",document.head.appendChild(e)})()</script></body></html>

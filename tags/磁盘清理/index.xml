@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>磁盘清理 on Glad You Came</title><link>https://tech-gt.github.io/tags/%E7%A3%81%E7%9B%98%E6%B8%85%E7%90%86/</link><description>Recent content in 磁盘清理 on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 10 Jan 2024 15:30:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/tags/%E7%A3%81%E7%9B%98%E6%B8%85%E7%90%86/index.xml" rel="self" type="application/rss+xml"/><item><title>记一次 Docker overlay2 目录导致磁盘爆满的排查与解决</title><link>https://tech-gt.github.io/p/%E8%AE%B0%E4%B8%80%E6%AC%A1-docker-overlay2-%E7%9B%AE%E5%BD%95%E5%AF%BC%E8%87%B4%E7%A3%81%E7%9B%98%E7%88%86%E6%BB%A1%E7%9A%84%E6%8E%92%E6%9F%A5%E4%B8%8E%E8%A7%A3%E5%86%B3/</link><pubDate>Wed, 10 Jan 2024 15:30:00 +0800</pubDate><guid>https://tech-gt.github.io/p/%E8%AE%B0%E4%B8%80%E6%AC%A1-docker-overlay2-%E7%9B%AE%E5%BD%95%E5%AF%BC%E8%87%B4%E7%A3%81%E7%9B%98%E7%88%86%E6%BB%A1%E7%9A%84%E6%8E%92%E6%9F%A5%E4%B8%8E%E8%A7%A3%E5%86%B3/</guid><description>&lt;h2 id="一问题背景">一、问题背景
+&lt;/h2>&lt;p>近日，收到开发环境一台服务器的磁盘空间告警，提示根分区使用率已达 96%。该服务器主要用于运行各类应用的 Docker 容器，日常数据量和日志增长相对稳定，因此初步判断问题可能出在 Docker 本身。本文旨在记录完整的排查思路与最终的解决方案。&lt;/p>
+&lt;h2 id="二排查过程">二、排查过程
+&lt;/h2>&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>确认磁盘使用情况&lt;/strong>&lt;/p>
+&lt;p>首先，登录服务器，使用 &lt;code>df -h&lt;/code> 命令检查磁盘各分区的详细使用情况。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">$ df -h
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Filesystem Size Used Avail Use% Mounted on
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">/dev/vda1 100G 96G 4.0G 96% /
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>输出证实了根分区 &lt;code>/&lt;/code> 确实即将耗尽。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>定位大文件目录&lt;/strong>&lt;/p>
+&lt;p>接下来，需要找出是哪个目录占用了大量空间。我们从根目录开始，使用 &lt;code>du -sh /*&lt;/code> 命令逐层分析。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 为了避免权限问题，建议使用 sudo&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">$ sudo du -sh /* &lt;span class="p">|&lt;/span> sort -rh
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">78G /var
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">15G /usr
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>很快定位到 &lt;code>/var&lt;/code> 目录异常庞大。继续深入排查 &lt;code>/var&lt;/code> 目录。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">$ sudo du -sh /var/* &lt;span class="p">|&lt;/span> sort -rh
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">75G /var/lib
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">...
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>最终，我们将目标锁定在 &lt;code>/var/lib/docker&lt;/code> 目录，它占用了超过 70G 的空间。&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>分析 Docker 磁盘占用&lt;/strong>&lt;/p>
+&lt;p>既然确定是 Docker 的问题，就可以使用 Docker 自带的命令进行分析。&lt;code>docker system df&lt;/code> 是一个非常有用的命令，可以清晰地列出 Docker 各类资源的占用情况。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">$ docker system df
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">TYPE TOTAL ACTIVE SIZE RECLAIMABLE
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Images &lt;span class="m">58&lt;/span> &lt;span class="m">12&lt;/span> 25.8GB 22.1GB &lt;span class="o">(&lt;/span>85%&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Containers &lt;span class="m">15&lt;/span> &lt;span class="m">10&lt;/span> 1.2GB 250MB &lt;span class="o">(&lt;/span>20%&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Local Volumes &lt;span class="m">22&lt;/span> &lt;span class="m">5&lt;/span> 8.9GB 6.5GB &lt;span class="o">(&lt;/span>73%&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">Build Cache &lt;span class="m">541&lt;/span> &lt;span class="m">0&lt;/span> 35.6GB 35.6GB &lt;span class="o">(&lt;/span>100%&lt;span class="o">)&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>结果一目了然：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>Images&lt;/strong>：存在大量未使用的镜像，可回收空间巨大。&lt;/li>
+&lt;li>&lt;strong>Local Volumes&lt;/strong>：存在许多无主（dangling）的数据卷。&lt;/li>
+&lt;li>&lt;strong>Build Cache&lt;/strong>：构建缓存占用了惊人的 35.6GB，且全部可以回收。&lt;/li>
+&lt;/ul>
+&lt;p>这些可回收空间（RECLAIMABLE）的总和，正是导致我们磁盘爆满的元凶。&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="三原因剖析">三、原因剖析
+&lt;/h2>&lt;p>&lt;code>overlay2&lt;/code> 是 Docker 使用的默认存储驱动，它负责管理镜像层和容器的读写层。我们拉取的每一个镜像、构建的每一个中间层、运行的每一个容器，都会在 &lt;code>/var/lib/docker/overlay2&lt;/code> 目录下留下数据。随着时间推移，以下几类资源会不断累积：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>悬空镜像（Dangling Images）&lt;/strong>：镜像的新版本覆盖了旧版本后，没有标签（tag）的旧镜像层并未被删除。&lt;/li>
+&lt;li>&lt;strong>停止运行的容器&lt;/strong>：执行 &lt;code>docker stop&lt;/code> 后的容器虽然不占用计算资源，但其文件系统层依然占用磁盘。&lt;/li>
+&lt;li>&lt;strong>无主数据卷（Dangling Volumes）&lt;/strong>：删除了容器但未删除其关联的数据卷，这些卷会一直存在。&lt;/li>
+&lt;li>&lt;strong>构建缓存（Build Cache）&lt;/strong>：&lt;code>docker build&lt;/code> 过程中会产生大量的中间镜像层作为缓存，以加速后续构建，这是最容易被忽视的“空间大户”。&lt;/li>
+&lt;/ul>
+&lt;h2 id="四解决方案">四、解决方案
+&lt;/h2>&lt;p>针对以上问题，Docker 提供了强大的 &lt;code>prune&lt;/code> 系列命令用于清理。&lt;/p>
+&lt;h3 id="方案一一键瘦身适用于清理开发环境">方案一：一键“瘦身”（适用于清理开发环境）
+&lt;/h3>&lt;p>对于开发或测试环境，可以使用以下命令进行一次彻底的清理，它会删除所有未被容器使用的资源。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># -a: 清理所有未被容器引用的资源，而不仅仅是悬空的&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># --volumes: 同时清理无主的数据卷&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># -f: 强制执行，无需交互式确认&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">docker system prune -a -f --volumes
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;strong>警告&lt;/strong>：&lt;code>--volumes&lt;/code> 参数会删除所有未被任何现有容器引用的数据卷。在生产环境执行前，请务必确认这些数据卷不再需要，否则可能导致数据永久丢失。&lt;/p>
+&lt;h3 id="方案二精细化清理推荐">方案二：精细化清理（推荐）
+&lt;/h3>&lt;p>更安全、更可控的方式是分类进行清理。&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;strong>清理已停止的容器&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">docker container prune -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>清理无用镜像&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 只清理悬空镜像&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">docker image prune -f
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 清理所有未被使用的镜像（慎用）&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">docker image prune -a -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>清理无用数据卷&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">docker volume prune -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;li>
+&lt;p>&lt;strong>清理构建缓存&lt;/strong>&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">docker builder prune -f
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;/li>
+&lt;/ol>
+&lt;p>执行完上述清理操作后，再次运行 &lt;code>df -h&lt;/code>，可以看到磁盘空间被成功释放。&lt;/p>
+&lt;h2 id="五建立长效机制">五、建立长效机制
+&lt;/h2>&lt;p>为了避免问题复现，建议建立自动化的清理机制。例如，可以设置一个 &lt;code>cron&lt;/code> 定时任务，在业务低峰期（如每日凌晨）自动执行清理。&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 编辑 crontab&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">crontab -e
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 添加以下任务，每天凌晨3点执行清理&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="m">0&lt;/span> &lt;span class="m">3&lt;/span> * * * /usr/bin/docker system prune -f --volumes &amp;gt; /dev/null 2&amp;gt;&lt;span class="p">&amp;amp;&lt;/span>&lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>同时，在编写 &lt;code>Dockerfile&lt;/code> 时，应遵循最佳实践，例如合并多个 &lt;code>RUN&lt;/code> 命令、使用 &lt;code>.dockerignore&lt;/code> 文件，以减少镜像体积和构建缓存。&lt;/p></description></item></channel></rss>

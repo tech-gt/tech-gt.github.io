@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>垃圾回收 on Glad You Came</title><link>https://tech-gt.github.io/tags/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/</link><description>Recent content in 垃圾回收 on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Mon, 18 Sep 2023 14:20:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/tags/%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6/index.xml" rel="self" type="application/rss+xml"/><item><title>JVM垃圾回收器的进化：还需要JVM调优吗？</title><link>https://tech-gt.github.io/p/jvm%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8%E7%9A%84%E8%BF%9B%E5%8C%96%E8%BF%98%E9%9C%80%E8%A6%81jvm%E8%B0%83%E4%BC%98%E5%90%97/</link><pubDate>Mon, 18 Sep 2023 14:20:00 +0800</pubDate><guid>https://tech-gt.github.io/p/jvm%E5%9E%83%E5%9C%BE%E5%9B%9E%E6%94%B6%E5%99%A8%E7%9A%84%E8%BF%9B%E5%8C%96%E8%BF%98%E9%9C%80%E8%A6%81jvm%E8%B0%83%E4%BC%98%E5%90%97/</guid><description>&lt;p>&lt;code>-XX:NewRatio&lt;/code>、&lt;code>-XX:SurvivorRatio&lt;/code>、&lt;code>-XX:MaxTenuringThreshold&lt;/code>&amp;hellip;一堆参数让人头大。&lt;/p>
+&lt;p>但时代变了。随着JVM垃圾回收器的不断进化，那些复杂的调优参数正在成为历史。
+今天我们就来聊聊：&lt;strong>在现代JDK版本中，我们还需要那么复杂的JVM调优吗？&lt;/strong>&lt;/p>
+&lt;h2 id="一传统gc的调优噩梦">一、传统GC的调优噩梦
+&lt;/h2>&lt;h3 id="serial-gc-和-parallel-gc-时代">Serial GC 和 Parallel GC 时代
+&lt;/h3>&lt;p>在早期的JDK版本中，我们主要使用Serial GC和Parallel GC。这些收集器虽然简单，但需要大量的手工调优：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;span class="lnt">9
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 传统的复杂调优参数&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseParallelGC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:ParallelGCThreads&lt;span class="o">=&lt;/span>&lt;span class="m">8&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:NewRatio&lt;span class="o">=&lt;/span>&lt;span class="m">3&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:SurvivorRatio&lt;span class="o">=&lt;/span>&lt;span class="m">8&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:MaxTenuringThreshold&lt;span class="o">=&lt;/span>&lt;span class="m">15&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseAdaptiveSizePolicy
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:MaxGCPauseMillis&lt;span class="o">=&lt;/span>&lt;span class="m">200&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:GCTimeRatio&lt;span class="o">=&lt;/span>&lt;span class="m">19&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>每个参数都需要根据应用特性精心调整，稍有不慎就可能导致：&lt;/p>
+&lt;ul>
+&lt;li>Young GC频繁，影响吞吐量&lt;/li>
+&lt;li>Full GC时间过长，造成应用卡顿&lt;/li>
+&lt;li>内存分配不合理，浪费堆空间&lt;/li>
+&lt;/ul>
+&lt;h3 id="cms时代的复杂性">CMS时代的复杂性
+&lt;/h3>&lt;p>CMS（Concurrent Mark Sweep）的出现让我们看到了低延迟的希望，但也带来了更多的调优复杂性：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># CMS的复杂配置&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseConcMarkSweepGC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+CMSParallelRemarkEnabled
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:CMSInitiatingOccupancyFraction&lt;span class="o">=&lt;/span>&lt;span class="m">70&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseCMSInitiatingOccupancyOnly
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+CMSClassUnloadingEnabled
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+CMSPermGenSweepingEnabled
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:CMSMaxAbortablePrecleanTime&lt;span class="o">=&lt;/span>&lt;span class="m">5000&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这些参数需要深入理解CMS的工作原理，调优门槛极高。&lt;/p>
+&lt;h2 id="二g1自适应调优的开始">二、G1：自适应调优的开始
+&lt;/h2>&lt;p>G1垃圾回收器的出现标志着JVM调优开始向简化方向发展。G1最大的亮点是&lt;strong>目标导向的调优&lt;/strong>：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># G1的简化配置&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseG1GC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:MaxGCPauseMillis&lt;span class="o">=&lt;/span>&lt;span class="m">200&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-Xms8g -Xmx8g
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>相比传统GC，G1只需要设置一个核心参数：&lt;code>MaxGCPauseMillis&lt;/code>。G1会自动调整其内部参数来尽量达到这个停顿时间目标。&lt;/p>
+&lt;h3 id="g1的自适应机制">G1的自适应机制
+&lt;/h3>&lt;p>G1内部实现了复杂的自适应算法：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>动态调整Region大小&lt;/strong>：根据堆大小自动计算最优的Region大小&lt;/li>
+&lt;li>&lt;strong>智能选择Collection Set&lt;/strong>：优先回收垃圾最多的Region&lt;/li>
+&lt;li>&lt;strong>自适应的并发线程数&lt;/strong>：根据CPU核心数自动调整&lt;/li>
+&lt;/ul>
+&lt;p>这意味着大部分场景下，我们不再需要手动调整那些复杂的内存分代参数。&lt;/p>
+&lt;h2 id="三zgc调优的终极简化">三、ZGC：调优的终极简化
+&lt;/h2>&lt;h3 id="美团的zgc实践从复杂到简单">美团的ZGC实践：从复杂到简单
+&lt;/h3>&lt;p>美团技术团队在《新一代垃圾回收器ZGC的探索与实践》中分享了一个典型案例：&lt;/p>
+&lt;p>&lt;strong>升级前（CMS/G1）&lt;/strong>：&lt;/p>
+&lt;ul>
+&lt;li>需要精心调优十几个GC参数&lt;/li>
+&lt;li>Young GC平均40ms，高峰期频繁&lt;/li>
+&lt;li>P999响应时间超过70ms&lt;/li>
+&lt;li>经常因为GC调优问题导致线上故障&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>升级后（ZGC）&lt;/strong>：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># ZGC的极简配置&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseZGC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-Xms10g -Xmx10g
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>仅仅两行配置，就实现了：&lt;/p>
+&lt;ul>
+&lt;li>P999响应时间降低到10ms以下&lt;/li>
+&lt;li>GC停顿时间稳定在亚毫秒级别&lt;/li>
+&lt;li>几乎不需要任何调优参数&lt;/li>
+&lt;/ul>
+&lt;h3 id="zgc为什么不需要复杂调优">ZGC为什么不需要复杂调优？
+&lt;/h3>&lt;p>ZGC的设计哲学就是**&amp;ldquo;开箱即用&amp;rdquo;**：&lt;/p>
+&lt;ol>
+&lt;li>&lt;strong>无分代设计&lt;/strong>：不需要调整新生代、老年代比例&lt;/li>
+&lt;li>&lt;strong>着色指针技术&lt;/strong>：自动处理对象移动，无需手动优化&lt;/li>
+&lt;li>&lt;strong>并发回收&lt;/strong>：几乎所有GC工作都与应用线程并发进行&lt;/li>
+&lt;li>&lt;strong>自适应算法&lt;/strong>：内部算法会自动优化回收策略&lt;/li>
+&lt;/ol>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// ZGC的核心优势：极简配置&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">class&lt;/span> &lt;span class="nc">ZGCExample&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">static&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kt">void&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">main&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">String&lt;/span>&lt;span class="o">[]&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">args&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 无论堆多大，无论对象多少&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// ZGC都能保持稳定的低延迟&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">List&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">Object&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">objects&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ArrayList&lt;/span>&lt;span class="o">&amp;lt;&amp;gt;&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">for&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kt">int&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">i&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">0&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">i&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">1000000&lt;/span>&lt;span class="p">;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">i&lt;/span>&lt;span class="o">++&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="n">objects&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">add&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Object&lt;/span>&lt;span class="p">());&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// GC停顿时间始终 &amp;lt; 10ms&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="四现代jdk能升级就升级">四、现代JDK：能升级就升级
+&lt;/h2>&lt;h3 id="jdk版本选择策略">JDK版本选择策略
+&lt;/h3>&lt;p>基于美团等公司的实践经验，我的建议是：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 推荐的JDK版本选择&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">JDK &lt;span class="m">8&lt;/span> -&amp;gt; 尽快升级到 JDK 17/21
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">JDK &lt;span class="m">11&lt;/span> -&amp;gt; 升级到 JDK 17/21
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">JDK &lt;span class="m">17&lt;/span> -&amp;gt; 当前最佳选择
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">JDK &lt;span class="m">21&lt;/span> -&amp;gt; 最新LTS，推荐新项目使用
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="升级带来的调优简化">升级带来的调优简化
+&lt;/h3>&lt;p>&lt;strong>JDK 8时代的复杂配置&lt;/strong>：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;span class="lnt">6
+&lt;/span>&lt;span class="lnt">7
+&lt;/span>&lt;span class="lnt">8
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">-XX:+UseG1GC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:MaxGCPauseMillis&lt;span class="o">=&lt;/span>&lt;span class="m">200&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1HeapRegionSize&lt;span class="o">=&lt;/span>16m
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1NewSizePercent&lt;span class="o">=&lt;/span>&lt;span class="m">30&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1MaxNewSizePercent&lt;span class="o">=&lt;/span>&lt;span class="m">40&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1MixedGCLiveThresholdPercent&lt;span class="o">=&lt;/span>&lt;span class="m">85&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1MixedGCCountTarget&lt;span class="o">=&lt;/span>&lt;span class="m">8&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:G1OldCSetRegionThresholdPercent&lt;span class="o">=&lt;/span>&lt;span class="m">10&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>&lt;strong>JDK 17+ ZGC的简化配置&lt;/strong>：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">-XX:+UseZGC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-Xms8g -Xmx8g
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>差距一目了然！&lt;/p>
+&lt;h2 id="五实战">五、实战
+&lt;/h2>&lt;h3 id="1-优先选择现代gc">1. 优先选择现代GC
+&lt;/h3>&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 推荐的GC选择策略&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 延迟敏感应用&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseZGC &lt;span class="c1"># JDK 15+&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 吞吐量优先应用&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseG1GC &lt;span class="c1"># JDK 9+&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:MaxGCPauseMillis&lt;span class="o">=&lt;/span>&lt;span class="m">100&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 避免使用的老旧GC&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># -XX:+UseParallelGC # 除非特殊场景&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># -XX:+UseConcMarkSweepGC # 已废弃&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="2-关注应用层面优化">2. 关注应用层面优化
+&lt;/h3>&lt;p>现代JVM调优的重点已经从GC参数转向应用层面：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="c1">// 现代Java应用优化重点&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">class&lt;/span> &lt;span class="nc">ModernOptimization&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 1. 减少对象分配&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="kd">private&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">static&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">final&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">List&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">String&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">CACHE&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ArrayList&lt;/span>&lt;span class="o">&amp;lt;&amp;gt;&lt;/span>&lt;span class="p">();&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 2. 使用对象池&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="kd">private&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">static&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="kd">final&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ObjectPool&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">StringBuilder&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">POOL&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">ObjectPool&lt;/span>&lt;span class="o">&amp;lt;&amp;gt;&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">StringBuilder&lt;/span>&lt;span class="p">::&lt;/span>&lt;span class="k">new&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 3. 合理使用缓存&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nd">@Cacheable&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s">&amp;#34;userCache&amp;#34;&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">User&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">getUser&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">Long&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">userRepository&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">findById&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">id&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 4. 异步处理减少延迟&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="nd">@Async&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="kd">public&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">CompletableFuture&lt;/span>&lt;span class="o">&amp;lt;&lt;/span>&lt;span class="n">Void&lt;/span>&lt;span class="o">&amp;gt;&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="nf">processAsync&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="n">Data&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">data&lt;/span>&lt;span class="p">)&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="p">{&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="c1">// 异步处理逻辑&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="k">return&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">CompletableFuture&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="na">completedFuture&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="kc">null&lt;/span>&lt;span class="p">);&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w"> &lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="p">}&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h3 id="3-监控和观测">3. 监控和观测
+&lt;/h3>&lt;p>现代JVM调优更注重监控和观测：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;span class="lnt">4
+&lt;/span>&lt;span class="lnt">5
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 启用现代监控参数&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+FlightRecorder
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:StartFlightRecording&lt;span class="o">=&lt;/span>&lt;span class="nv">duration&lt;/span>&lt;span class="o">=&lt;/span>60s,filename&lt;span class="o">=&lt;/span>gc.jfr
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UnlockExperimentalVMOptions
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseJVMCICompiler &lt;span class="c1"># GraalVM&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="六迁移实践美团的经验总结">六、迁移实践：美团的经验总结
+&lt;/h2>&lt;h3 id="迁移步骤">迁移步骤
+&lt;/h3>&lt;p>基于美团的实践，ZGC迁移可以分为以下步骤：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 第一步：环境准备&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 升级到JDK 17+&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">sudo update-alternatives --install /usr/bin/java java /opt/jdk-17/bin/java &lt;span class="m">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 第二步：简化JVM参数&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 移除所有复杂的GC调优参数&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 只保留核心配置&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+UseZGC
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-Xms16g -Xmx16g
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">-XX:+AlwaysPreTouch
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 第三步：依赖升级&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># 升级不兼容的依赖库&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Lombok -&amp;gt; 1.18.20+&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1"># Netty -&amp;gt; 4.1.65+&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h2 id="七总结调优的未来">七、总结：调优的未来
+&lt;/h2>&lt;h3 id="调优理念的转变">调优理念的转变
+&lt;/h3>&lt;p>从美团的实践和现代JDK的发展趋势来看，JVM调优正在发生根本性转变：&lt;/p>
+&lt;p>&lt;strong>传统调优&lt;/strong>：&lt;/p>
+&lt;ul>
+&lt;li>关注GC参数的精细调整&lt;/li>
+&lt;li>需要深入理解GC算法&lt;/li>
+&lt;li>调优门槛高，风险大&lt;/li>
+&lt;/ul>
+&lt;p>&lt;strong>现代调优&lt;/strong>：&lt;/p>
+&lt;ul>
+&lt;li>优先升级JDK版本&lt;/li>
+&lt;li>选择合适的GC算法&lt;/li>
+&lt;li>关注应用层面优化&lt;/li>
+&lt;li>重视监控和观测&lt;/li>
+&lt;/ul>
+&lt;h3 id="实用建议">实用建议
+&lt;/h3>&lt;ol>
+&lt;li>&lt;strong>能升级就升级&lt;/strong>：JDK 17/21 带来的收益远超调优参数&lt;/li>
+&lt;li>&lt;strong>选择现代GC&lt;/strong>：ZGC/G1 比复杂的参数调优更有效&lt;/li>
+&lt;li>&lt;strong>关注应用优化&lt;/strong>：减少对象分配比调优GC参数更重要&lt;/li>
+&lt;li>&lt;strong>建立监控体系&lt;/strong>：用数据说话，而不是凭感觉调优&lt;/li>
+&lt;/ol>
+&lt;p>技术的进步让复杂的事情变得简单。就像我们不再需要手动管理内存一样，复杂的JVM调优也正在成为历史。&lt;/p></description></item></channel></rss>

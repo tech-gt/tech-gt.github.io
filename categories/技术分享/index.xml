@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>技术分享 on Glad You Came</title><link>https://tech-gt.github.io/categories/%E6%8A%80%E6%9C%AF%E5%88%86%E4%BA%AB/</link><description>Recent content in 技术分享 on Glad You Came</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Fri, 20 Jun 2025 15:30:00 +0800</lastBuildDate><atom:link href="https://tech-gt.github.io/categories/%E6%8A%80%E6%9C%AF%E5%88%86%E4%BA%AB/index.xml" rel="self" type="application/rss+xml"/><item><title>AI 辅助编程：轻松构建 MCP Server</title><link>https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/</link><pubDate>Fri, 20 Jun 2025 15:30:00 +0800</pubDate><guid>https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/</guid><description>&lt;p>构建一个 MCP Server 听起来可能有些复杂，需要对协议规范有深入的理解。在 AI 辅助编程已成为新常态的今天，我们可以借助 AI 的力量，大大简化这一过程。&lt;/p>
+&lt;h3 id="mcp-server-核心概念">MCP Server 核心概念
+&lt;/h3>&lt;p>在深入实践之前，我们先简单了解一下 MCP 的核心架构。MCP 遵循客户端-服务器模型：&lt;/p>
+&lt;ul>
+&lt;li>&lt;strong>MCP Client&lt;/strong>：通常内嵌在宿主应用（如 IDE、代码编辑器、聊天工具）中，负责与用户和 LLM 交互。Client一般不需要我们去开发。&lt;/li>
+&lt;li>&lt;strong>MCP Server&lt;/strong>：一个独立的进程，负责向客户端提供特定的能力，如工具（Tools）、上下文资源（Resources）等。&lt;/li>
+&lt;/ul>
+&lt;h3 id="基于-ai-辅助编写-mcp-server">基于 AI 辅助编写 MCP Server
+&lt;/h3>&lt;p>在官方文档（https://modelcontextprotocol.io/quickstart/server） MCP Server 的开发方式，以及官方提供的各个语言的 SDK 的示例代码。
+写的挺清晰的，如果你懂代码，仔细看一遍很快就能上手，但在 AI 时代，从零自己去写肯定不可能了，官方其实也建议通过 AI 来帮我们实现 MCP，所以在文档中单独还提供了一个 Building MCP with LLMs 的章节。
+&lt;img src="https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image.png"
+width="1659"
+height="807"
+srcset="https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image_hu_115b709714e99c7e.png 480w, https://tech-gt.github.io/p/ai-%E8%BE%85%E5%8A%A9%E7%BC%96%E7%A8%8B%E8%BD%BB%E6%9D%BE%E6%9E%84%E5%BB%BA-mcp-server/image_hu_46cec8b9c02c52b8.png 1024w"
+loading="lazy"
+alt="MCP Server"
+class="gallery-image"
+data-flex-grow="205"
+data-flex-basis="493px"
+>&lt;/p>
+&lt;h4 id="第一步理解规范-understanding-the-spec">第一步：理解规范 (Understanding the Spec)
+&lt;/h4>&lt;p>大概思路如下：&lt;/p>
+&lt;p>在开始之前，收集必要的文档，以帮助 AI 了解 MCP：&lt;/p>
+&lt;p>访问 &lt;a class="link" href="https://modelcontextprotocol.io/llms-full.txt" target="_blank" rel="noopener"
+>https://modelcontextprotocol.io/llms-full.txt&lt;/a> 并复制完整的文档文本。
+导航到 MCP 的 TypeScript 软件开发工具包（SDK）或 Python 软件开发工具包的代码仓库。
+复制（README）和其他相关文档。
+将这些文档粘贴到你与克劳德的对话中。
+提供了相关文档之后，向 AI 清晰地描述你想要构建的服务器类型：&lt;/p>
+&lt;p>你的服务器将公开哪些资源。
+它将提供哪些工具。
+它应该给出的任何提示。
+它需要与哪些外部系统进行交互。
+比如这是一个例子：构建一个 MCP 服务器，该服务器：&lt;/p>
+&lt;p>连接到我公司的 PostgreSQL 数据库。
+将表模式作为资源公开。
+提供用于运行只读 SQL 查询的工具。
+包含针对常见数据分析任务的提示。
+在实际测试中我发现，上面提到的 &lt;a class="link" href="https://modelcontextprotocol.io/llms-full.txt" target="_blank" rel="noopener"
+>https://modelcontextprotocol.io/llms-full.txt&lt;/a> 这个文档就是整个文档站的内容，里面包含了很多构建 MCP Server 不需要的内容，反而会给模型造成干扰，大家可以直接参考下面的提示词：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-java" data-lang="java">&lt;span class="line">&lt;span class="cl">&lt;span class="err">##&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">需求&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">基于提供的&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">相关资料&lt;/span>&lt;span class="err">，&lt;/span>&lt;span class="n">帮我构建一个&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Server&lt;/span>&lt;span class="err">，&lt;/span>&lt;span class="n">需求如下&lt;/span>&lt;span class="err">：&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">提供一个获取当前时间的工具&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">接收时区作为参数&lt;/span>&lt;span class="err">（&lt;/span>&lt;span class="n">可选&lt;/span>&lt;span class="err">）&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">编写清晰的注释和说明&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">要求功能简洁&lt;/span>&lt;span class="err">、&lt;/span>&lt;span class="n">只包含关键功能&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">使用&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">TypeScript&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">编写&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="n">请参考下面四个资料&lt;/span>&lt;span class="err">：&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="err">##&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">参考资料&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">1&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">基础介绍&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">粘贴&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="c1">//modelcontextprotocol.io/introduction 里的内容。&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="err">##&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">参考资料&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">2&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">核心架构&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">粘贴&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="c1">//modelcontextprotocol.io/docs/concepts/architecture 里的内容。&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="err">##&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">参考资料&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">3&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Server&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">开发指引&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">粘贴&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="c1">//modelcontextprotocol.io/quickstart/server 里的内容。&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="err">##&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="o">[&lt;/span>&lt;span class="n">参考资料&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">4&lt;/span>&lt;span class="o">]&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">MCP&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">Typescript&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">SDK&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">文档&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="w">&lt;/span>&lt;span class="o">-&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">粘贴&lt;/span>&lt;span class="w"> &lt;/span>&lt;span class="n">https&lt;/span>&lt;span class="p">:&lt;/span>&lt;span class="c1">//github.com/modelcontextprotocol/typescript-sdk/blob/main/README.md 里的内容。&lt;/span>&lt;span class="w">
+&lt;/span>&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;h4 id="第二步搭建项目骨架-scaffolding">第二步：搭建项目骨架 (Scaffolding)
+&lt;/h4>&lt;p>下面是一个 AI 帮我生成好的 MCP Server 的关键代码：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;span class="lnt">13
+&lt;/span>&lt;span class="lnt">14
+&lt;/span>&lt;span class="lnt">15
+&lt;/span>&lt;span class="lnt">16
+&lt;/span>&lt;span class="lnt">17
+&lt;/span>&lt;span class="lnt">18
+&lt;/span>&lt;span class="lnt">19
+&lt;/span>&lt;span class="lnt">20
+&lt;/span>&lt;span class="lnt">21
+&lt;/span>&lt;span class="lnt">22
+&lt;/span>&lt;span class="lnt">23
+&lt;/span>&lt;span class="lnt">24
+&lt;/span>&lt;span class="lnt">25
+&lt;/span>&lt;span class="lnt">26
+&lt;/span>&lt;span class="lnt">27
+&lt;/span>&lt;span class="lnt">28
+&lt;/span>&lt;span class="lnt">29
+&lt;/span>&lt;span class="lnt">30
+&lt;/span>&lt;span class="lnt">31
+&lt;/span>&lt;span class="lnt">32
+&lt;/span>&lt;span class="lnt">33
+&lt;/span>&lt;span class="lnt">34
+&lt;/span>&lt;span class="lnt">35
+&lt;/span>&lt;span class="lnt">36
+&lt;/span>&lt;span class="lnt">37
+&lt;/span>&lt;span class="lnt">38
+&lt;/span>&lt;span class="lnt">39
+&lt;/span>&lt;span class="lnt">40
+&lt;/span>&lt;span class="lnt">41
+&lt;/span>&lt;span class="lnt">42
+&lt;/span>&lt;span class="lnt">43
+&lt;/span>&lt;span class="lnt">44
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-javascript" data-lang="javascript">&lt;span class="line">&lt;span class="cl">&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">McpServer&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;@modelcontextprotocol/sdk/server/mcp.js&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">StdioServerTransport&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;@modelcontextprotocol/sdk/server/stdio.js&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="kr">import&lt;/span> &lt;span class="p">{&lt;/span> &lt;span class="nx">z&lt;/span> &lt;span class="p">}&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s2">&amp;#34;zod&amp;#34;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="kr">const&lt;/span> &lt;span class="nx">server&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">McpServer&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">name&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;TimeServer&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="c1">// 服务器名称
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="nx">version&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s2">&amp;#34;1.0.0&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="c1">// 服务器版本
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span>&lt;span class="p">});&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">server&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">tool&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="s2">&amp;#34;getCurrentTime&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="c1">// 工具名称,
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="s2">&amp;#34;根据时区（可选）获取当前时间&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="c1">// 工具描述
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">timezone&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="nx">z&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">.&lt;/span>&lt;span class="nx">string&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">.&lt;/span>&lt;span class="nx">optional&lt;/span>&lt;span class="p">()&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">.&lt;/span>&lt;span class="nx">describe&lt;/span>&lt;span class="p">(&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="s2">&amp;#34;时区，例如 &amp;#39;Asia/Shanghai&amp;#39;, &amp;#39;America/New_York&amp;#39; 等（如不提供，则使用系统默认时区）&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">),&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">},&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kr">async&lt;/span> &lt;span class="p">({&lt;/span> &lt;span class="nx">timezone&lt;/span> &lt;span class="p">})&lt;/span> &lt;span class="p">=&amp;gt;&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// 具体工具实现，这里省略
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cm">/**
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cm"> * 启动服务器，连接到标准输入/输出传输
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="cm"> */&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="kr">async&lt;/span> &lt;span class="kd">function&lt;/span> &lt;span class="nx">startServer&lt;/span>&lt;span class="p">()&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="k">try&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;正在启动 MCP 时间服务器...&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// 创建标准输入/输出传输
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="kr">const&lt;/span> &lt;span class="nx">transport&lt;/span> &lt;span class="o">=&lt;/span> &lt;span class="k">new&lt;/span> &lt;span class="nx">StdioServerTransport&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="c1">// 连接服务器到传输
+&lt;/span>&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="c1">&lt;/span> &lt;span class="kr">await&lt;/span> &lt;span class="nx">server&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">connect&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="nx">transport&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">log&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;MCP 时间服务器已启动，等待请求...&amp;#34;&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span> &lt;span class="k">catch&lt;/span> &lt;span class="p">(&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">)&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">console&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">error&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="s2">&amp;#34;启动服务器时出错:&amp;#34;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="nx">error&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">process&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">exit&lt;/span>&lt;span class="p">(&lt;/span>&lt;span class="mi">1&lt;/span>&lt;span class="p">);&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">startServer&lt;/span>&lt;span class="p">();&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>其实代码非常简单，我们可以拆分为三部分来理解：&lt;/p>
+&lt;p>第一步：使用官方提供的 @modelcontextprotocol/sdk/server/mcp.js 包，创建一个 McpServer 实例。
+第二步：使用 server.tool 定义提供的工具方法，包括工具方法的名称、工具方法的描述、工具方法的参数、工具方法的具体实现逻辑。&lt;/p>
+&lt;p>另外使用了 &amp;ldquo;zod&amp;rdquo; 这个包定义了方法参数的类型以及描述。
+第三步：启动 Server，并且使用 SDK 中导出的 StdioServerTransport 来定义工具使用 STDIO 通信协议，等待外部的标准输入，并且把工具的执行结果转化为标准输出反馈到外部。&lt;/p>
+&lt;p>就是这么简单，我们只需要按照这个模板来添加更多的工具实现就可以了，另外 Resources、Prompt 的编写方式其实都是类似的，大家只需要按照这套提示词模板，定义好自己的需求，AI（Claude 的准确性最高）基本上都能比较完整的实现。&lt;/p>
+&lt;h4 id="使用-inspector-调试-mcp-server">使用 inspector 调试 MCP Server
+&lt;/h4>&lt;p>开发完成后，我们可以直接使用官方提供的 MCP Server 调试工具（@modelcontextprotocol/inspector）来进行调试。
+比如我们可以调试我们刚刚开发好的工具，这里直接使用 node 运行我们本地构建好的代码：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-bash" data-lang="bash">&lt;span class="line">&lt;span class="cl">npx @modelcontextprotocol/inspector node dist/index.js
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>启动成功后，它会在我们的本地监听 6274 端口，我们点击 Connect
+连接成功后，我们点击 List Tools
+然后可以看到当前 MCP Server 定义的所有工具，我们这里定义了一个获取当前时间的工具，我们点击这个工具，可以对它进行调试。&lt;/p></description></item><item><title>让 Hugo Stack 主题完美支持 Mermaid 流程图</title><link>https://tech-gt.github.io/p/%E8%AE%A9-hugo-stack-%E4%B8%BB%E9%A2%98%E5%AE%8C%E7%BE%8E%E6%94%AF%E6%8C%81-mermaid-%E6%B5%81%E7%A8%8B%E5%9B%BE/</link><pubDate>Tue, 18 Jul 2023 00:00:00 +0000</pubDate><guid>https://tech-gt.github.io/p/%E8%AE%A9-hugo-stack-%E4%B8%BB%E9%A2%98%E5%AE%8C%E7%BE%8E%E6%94%AF%E6%8C%81-mermaid-%E6%B5%81%E7%A8%8B%E5%9B%BE/</guid><description>&lt;p>在日常写博客的过程中，流程图、时序图等可视化表达越来越重要。Mermaid 作为一款轻量级的图表语法工具，非常适合用来在 Markdown 里画图。但 Hugo Stack 主题默认并不支持 Mermaid 渲染，本文就来分享一下我是如何让它完美支持 Mermaid 的。&lt;/p>
+&lt;h2 id="问题分析">问题分析
+&lt;/h2>&lt;p>Hugo 的 Goldmark 渲染器默认不会把 &lt;code>mermaid&lt;/code> 代码块当作图表处理，而 Stack 主题本身也没有内置 Mermaid 的支持。网上的教程五花八门，有的让你魔改主题，有的让你用第三方插件，但都不太优雅。&lt;/p>
+&lt;h2 id="解决思路">解决思路
+&lt;/h2>&lt;p>我的目标是：&lt;/p>
+&lt;ul>
+&lt;li>既能用代码块的方式写 Mermaid，也能用短代码（shortcode）&lt;/li>
+&lt;li>尽量不动主题源码，升级主题时不容易冲突&lt;/li>
+&lt;li>配置简单，易于维护&lt;/li>
+&lt;/ul>
+&lt;h2 id="配置步骤">配置步骤
+&lt;/h2>&lt;h3 id="1-配置-goldmark-支持-mermaid-代码块">1. 配置 Goldmark 支持 Mermaid 代码块
+&lt;/h3>&lt;p>编辑 &lt;code>config/_default/markup.toml&lt;/code>，如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-toml" data-lang="toml">&lt;span class="line">&lt;span class="cl">&lt;span class="p">[&lt;/span>&lt;span class="nx">goldmark&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">extensions&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">passthrough&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">delimiters&lt;/span>&lt;span class="p">]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">block&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="p">[[&lt;/span>&lt;span class="s1">&amp;#39;\\[&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;\\]&amp;#39;&lt;/span>&lt;span class="p">],&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;$$&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;$$&amp;#39;&lt;/span>&lt;span class="p">],&lt;/span> &lt;span class="p">[&lt;/span>&lt;span class="s1">&amp;#39;```mermaid&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;```&amp;#39;&lt;/span>&lt;span class="p">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="nx">inline&lt;/span> &lt;span class="p">=&lt;/span> &lt;span class="p">[[&lt;/span>&lt;span class="s1">&amp;#39;\\(&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span> &lt;span class="s1">&amp;#39;\\)&amp;#39;&lt;/span>&lt;span class="p">]]&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这样 Hugo 就不会转义 mermaid 代码块内容。&lt;/p>
+&lt;h3 id="2-新建-mermaid-短代码">2. 新建 Mermaid 短代码
+&lt;/h3>&lt;p>在 &lt;code>layouts/shortcodes/mermaid.html&lt;/code> 新建如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt">1
+&lt;/span>&lt;span class="lnt">2
+&lt;/span>&lt;span class="lnt">3
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">div&lt;/span> &lt;span class="na">class&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;mermaid&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">{{- .Inner -}}
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">div&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>以后写博客时可以这样用：&lt;/p>
+&lt;pre class="no-mermaid">
+&amp;#123;&amp;#123;&amp;lt; mermaid &amp;gt;&amp;#125;&amp;#125;
+graph TD
+A[开始] --> B{判断}
+B -->|是| C[执行]
+B -->|否| D[结束]
+C --> D
+&amp;#123;&amp;#123;&amp;lt; /mermaid &amp;gt;&amp;#125;&amp;#125;
+&lt;/pre>
+&lt;h3 id="3-全局引入-mermaid-脚本">3. 全局引入 Mermaid 脚本
+&lt;/h3>&lt;p>在 &lt;code>layouts/partials/head/custom.html&lt;/code> 新建如下内容：&lt;/p>
+&lt;div class="highlight">&lt;div class="chroma">
+&lt;table class="lntable">&lt;tr>&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code>&lt;span class="lnt"> 1
+&lt;/span>&lt;span class="lnt"> 2
+&lt;/span>&lt;span class="lnt"> 3
+&lt;/span>&lt;span class="lnt"> 4
+&lt;/span>&lt;span class="lnt"> 5
+&lt;/span>&lt;span class="lnt"> 6
+&lt;/span>&lt;span class="lnt"> 7
+&lt;/span>&lt;span class="lnt"> 8
+&lt;/span>&lt;span class="lnt"> 9
+&lt;/span>&lt;span class="lnt">10
+&lt;/span>&lt;span class="lnt">11
+&lt;/span>&lt;span class="lnt">12
+&lt;/span>&lt;/code>&lt;/pre>&lt;/td>
+&lt;td class="lntd">
+&lt;pre tabindex="0" class="chroma">&lt;code class="language-html" data-lang="html">&lt;span class="line">&lt;span class="cl">&lt;span class="c">&amp;lt;!-- Mermaid Diagram Support --&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;&lt;/span>&lt;span class="nt">script&lt;/span> &lt;span class="na">type&lt;/span>&lt;span class="o">=&lt;/span>&lt;span class="s">&amp;#34;module&amp;#34;&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="kr">import&lt;/span> &lt;span class="nx">mermaid&lt;/span> &lt;span class="nx">from&lt;/span> &lt;span class="s1">&amp;#39;https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs&amp;#39;&lt;/span>&lt;span class="p">;&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">mermaid&lt;/span>&lt;span class="p">.&lt;/span>&lt;span class="nx">initialize&lt;/span>&lt;span class="p">({&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">startOnLoad&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">theme&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="s1">&amp;#39;default&amp;#39;&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">flowchart&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="p">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">useMaxWidth&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>&lt;span class="p">,&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="nx">htmlLabels&lt;/span>&lt;span class="o">:&lt;/span> &lt;span class="kc">true&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">}&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl"> &lt;span class="p">});&lt;/span>
+&lt;/span>&lt;/span>&lt;span class="line">&lt;span class="cl">&lt;span class="p">&amp;lt;/&lt;/span>&lt;span class="nt">script&lt;/span>&lt;span class="p">&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/td>&lt;/tr>&lt;/table>
+&lt;/div>
+&lt;/div>&lt;p>这样每个页面都会自动加载 Mermaid。&lt;/p>
+&lt;h2 id="踩过的坑">踩过的坑
+&lt;/h2>&lt;ul>
+&lt;li>&lt;strong>重复定义 Goldmark 配置&lt;/strong>：一开始我在 &lt;code>markup.toml&lt;/code> 里多次写了 &lt;code>[goldmark.extensions.passthrough.delimiters]&lt;/code>，导致 Hugo 报错。正确做法是合并到同一个表里。&lt;/li>
+&lt;li>&lt;strong>主题覆盖问题&lt;/strong>：Stack 主题有自己的 head 模板，直接加在 &lt;code>head.html&lt;/code> 里可能会被覆盖。用 &lt;code>custom.html&lt;/code> 是最保险的。&lt;/li>
+&lt;li>&lt;strong>浏览器缓存&lt;/strong>：有时候改完配置没生效，多刷新几次或者清空缓存就好了。&lt;/li>
+&lt;/ul>
+&lt;h2 id="最终效果">最终效果
+&lt;/h2>&lt;p>现在无论是用代码块还是短代码，Mermaid 图表都能在博客里完美显示了！&lt;/p>
+&lt;p>效果如下：&lt;/p>
+&lt;div class="mermaid">
+graph TD
+A[开始] --> B{判断}
+B -->|是| C[执行]
+B -->|否| D[结束]
+C --> D
+&lt;/div></description></item></channel></rss>
